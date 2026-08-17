@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ink">#0A2145</color>
+    <color name="ink2">#071734</color>
+    <color name="bezel">#3A87B5</color>
+    <color name="bezel_light">#6BB8DC</color>
+    <color name="text">#CFEBFF</color>
+    <color name="muted">#7FA6C8</color>
+    <color name="amber">#F2A93B</color>
+    <color name="pin_red">#E23B3B</color>
+    <color name="pin_green">#6ABE4F</color>
+</resources>

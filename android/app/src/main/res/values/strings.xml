@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Spidey Tracker</string>
+    <string name="widget_description">Hot sighting counts and the nearest one worth chasing.</string>
+</resources>

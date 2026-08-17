@@ -101,7 +101,7 @@ var SpideyCore = (() => {
 
   // src/lib/seed.ts
   var HANDLES = [
-    "queensrooftop",
+    "foresthills_frank",
     "f_train_ghost",
     "bodega_cat_92",
     "nightshiftnurse",
@@ -112,7 +112,7 @@ var SpideyCore = (() => {
     "lateshift_leo",
     "bridge_and_tunnel",
     "midtown_myra",
-    "sixthave_sam",
+    "flatiron_finch",
     "yellowcab_yuri",
     "harlem_hana",
     "brooklyn_bram",
@@ -125,18 +125,18 @@ var SpideyCore = (() => {
     "whole street stopped and looked up",
     "webbing on the streetlight is still there if you want to check",
     "gone before I got my phone out, obviously",
-    "kid next to me screamed. fair enough",
+    "nobody round here knows his name. we just know he turns up",
     "landed on the fire escape, waved, left",
-    "",
+    "kid outside the bodega called it before the rest of us looked up",
     ""
   ];
   var TAGS = [
     "swinging",
     "swinging",
     "red-blur",
-    "suit-spotted",
+    "rooftop",
     "stopped-something",
-    "webbing"
+    "acting-strange"
   ];
   function makeRandom(seed) {
     let state = seed >>> 0;
@@ -192,11 +192,13 @@ var SpideyCore = (() => {
 
   // src/types.ts
   var TAGS2 = [
-    { id: "swinging", label: "Swinging by", icon: "\u{1F578}\uFE0F", baseWeight: 1 },
-    { id: "stopped-something", label: "Stopped something", icon: "\u{1F6A8}", baseWeight: 1.4 },
+    { id: "swinging", label: "Swinging through", icon: "\u{1F578}\uFE0F", baseWeight: 1 },
+    { id: "stopped-something", label: "Stopped a mugging", icon: "\u{1F6A8}", baseWeight: 1.4 },
     { id: "red-blur", label: "Just a red blur", icon: "\u{1F4A8}", baseWeight: 0.6 },
-    { id: "suit-spotted", label: "Suit spotted", icon: "\u{1F9B8}", baseWeight: 1.2 },
-    { id: "webbing", label: "Fresh webbing", icon: "\u{1F9F5}", baseWeight: 0.9 }
+    { id: "rooftop", label: "Rooftop landing", icon: "\u{1F3D9}\uFE0F", baseWeight: 1.1 },
+    { id: "webbing", label: "Fresh webbing", icon: "\u{1F9F5}", baseWeight: 0.9 },
+    { id: "acting-strange", label: "People acting strange", icon: "\u{1F300}", baseWeight: 1.2 },
+    { id: "heavy", label: "Something big fighting back", icon: "\u26A1", baseWeight: 1.3 }
   ];
   var TAG_BY_ID = Object.fromEntries(
     TAGS2.map((t) => [t.id, t])

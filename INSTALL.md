@@ -1,144 +1,115 @@
 # Installing on your phone
 
-Two things to install: the **app** (a PWA, works on both phones) and the
-**widget** (different route on each platform, because no web technology can put
-a live widget on a home screen).
+**Android** is a native app — install the APK and everything happens inside it.
+Nothing opens a browser.
+
+**iPhone** has no native build (that needs a Mac, Xcode and an Apple developer
+account), so it installs the web app to the home screen and gets its widget
+through Scriptable.
 
 ---
 
-## 1. Put the app online
+## Android
 
-The app needs an HTTPS address before a phone can install it. A GitHub Actions
-workflow is already set up to publish it.
+### The app
 
-**One setting has to be flipped by hand — I cannot do it from here:**
+1. Get `app-debug.apk` — attached in chat, or from the **Android app** workflow
+   run → **Artifacts**
+2. Copy it to your phone and open it
+3. Android will warn about installing from an unknown source, because the APK is
+   debug-signed rather than from the Play Store. Allow it for your file manager,
+   then install.
+4. Open **Spidey Tracker** and allow location when asked
 
-1. Go to the repo → **Settings** → **Pages**
-2. Under **Build and deployment → Source**, choose **GitHub Actions**
-3. Go to **Actions** → **Deploy to GitHub Pages** → **Run workflow**
+That is the whole install. The map, the Bugle and patrol tracking all run in the
+app; the only thing it uses the network for is map tiles.
 
-The app then lives at:
+### The widget
 
+Long-press the home screen → **Widgets** → **Spidey Tracker** → drag it out.
+
+It shows hot and warm counts and the nearest sighting worth chasing, reads the
+same data the app does — your pins, your votes — and opens the app when tapped.
+Android refreshes it every 30 minutes, which is the platform minimum, and the
+app refreshes it whenever you leave it.
+
+### Building it yourself
+
+```bash
+cd android
+echo "sdk.dir=$ANDROID_HOME" > local.properties
+./gradlew :app:assembleDebug      # or: gradle :app:assembleDebug
 ```
-https://wyattknn132r4tyu.github.io/spidey-app/
-```
-
-If you host it somewhere else, update `APP_URL` in `widgets/ios/shell.js` and
-`SpideyWidgetProvider.kt`, and set `BASE_PATH=/` when building for a domain root.
 
 ---
 
-## 2. Install the app
+## iPhone
 
-### iPhone
+### The app
 
-1. Open the URL **in Safari** (Chrome on iOS cannot install PWAs)
-2. Tap **Share** → **Add to Home Screen** → **Add**
+The web app needs an HTTPS address first. A workflow publishes it, but **one
+setting has to be flipped by hand — I cannot do it from here:**
 
-It launches fullscreen with no browser chrome, and works offline after the first
-open. Allow location when asked, or the map centres on midtown.
+1. Repo → **Settings** → **Pages**
+2. **Build and deployment → Source**: choose **GitHub Actions**
+3. **Actions** → **Deploy to GitHub Pages** → **Run workflow**
 
-### Android
+It then lives at `https://wyattknn132r4tyu.github.io/spidey-app/`.
 
-1. Open the URL in Chrome
-2. Tap the **⋮ menu** → **Install app** (or accept the install prompt)
+Open that **in Safari** (Chrome on iOS cannot install web apps), then
+**Share** → **Add to Home Screen**. It launches fullscreen with no browser
+chrome and works offline after the first open.
 
-Android installs it as a proper app with its own entry in the app drawer.
-
----
-
-## 3. Install the widget
-
-### iPhone — via Scriptable
+### The widget
 
 iOS widgets need native code, but **Scriptable** runs JavaScript widgets without
 Xcode or a developer account.
 
 1. Install **Scriptable** from the App Store (free)
-2. Open `widgets/ios/SpideyWidget.js` from this repo and copy the whole file
+2. Copy the whole of `widgets/ios/SpideyWidget.js`
 3. In Scriptable: **+** → paste → name it **Spidey Tracker** → **Done**
-4. Run it once inside Scriptable and **allow location** when prompted — the
-   widget cannot ask for permission itself
-5. Long-press your home screen → **+** → **Scriptable** → pick a size → **Add**
+4. Run it once inside Scriptable and **allow location** — the widget cannot ask
+   for permission itself
+5. Long-press the home screen → **+** → **Scriptable** → pick a size → **Add**
 6. Long-press the new widget → **Edit Widget** → **Script: Spidey Tracker**
 
-Sizes: **small** shows the hot count and the nearest sighting; **medium** adds a
-list of active zones; **lock screen** (`accessoryRectangular`/`accessoryInline`)
-shows a one-line summary. Tapping opens the app.
+Small shows the hot count and nearest sighting, medium adds active zones, and
+the lock screen sizes show a one-line summary. iOS decides when widgets refresh
+— roughly every 15–30 minutes.
 
-iOS decides when widgets refresh — roughly every 15–30 minutes in practice, not
-on demand.
-
-**If you edit the widget**, edit `widgets/ios/shell.js` and run
-`npm run build:widget`, not the generated `SpideyWidget.js`.
-
-### Android — via the APK
-
-A debug-signed APK is built from `widgets/android`.
-
-**To install the one already built:**
-
-1. Get `app-debug.apk` (attached in chat, or from the **Android widget** workflow
-   run → **Artifacts**)
-2. Copy it to your phone and open it
-3. Android will warn about installing from an unknown source — allow it for your
-   file manager or browser, then install
-
-**To build it yourself:**
-
-```bash
-cd widgets/android
-echo "sdk.dir=$ANDROID_HOME" > local.properties
-./gradlew :app:assembleDebug     # or: gradle :app:assembleDebug
-```
-
-Then:
-
-1. Open **Spidey Widget** from the app drawer and tap **Grant location** — the
-   widget cannot request permission itself
-2. Long-press the home screen → **Widgets** → **Spidey Widget** → drag it out
-
-Android refreshes it every 30 minutes (the platform minimum). **Refresh widget
-now** in the app forces an update. Tapping the widget opens the web app.
+If you edit it, edit `widgets/ios/shell.js` and run `npm run build:widget`, not
+the generated file.
 
 ---
 
-## What the widgets show
+## Why the two platforms differ
 
-Hot and warm counts, and the sighting most worth chasing — its distance,
-direction and how long until it cools to the next band.
+Android widgets and a native UI are buildable from source with the Android SDK
+alone, so Android gets the real thing. An iOS build would need Xcode on a Mac
+plus a $99/year developer account, neither of which exists here — so iPhone gets
+the web app plus Scriptable, which is the closest thing to a real widget that
+does not require any of that.
 
-Both widgets reproduce the app's own model rather than reading its data, because
-neither can see the browser's storage:
-
-- The **iOS widget** is built by `npm run build:widget`, which bundles the real
-  modules from `src/lib` — one source of truth, no hand-copy.
-- The **Android widget** is a Kotlin port, since RemoteViews cannot run
-  JavaScript. `npm run build:parity` regenerates a fixture from the TypeScript
-  and `SpideyCoreTest` asserts the port reproduces it exactly — positions,
-  timestamps, vote counts and confidence to 1e-12.
-
-The seed is keyed to the day and your location, so app and widget agree on what
-is hot at any given moment.
-
-**They will not show pins you drop in the app.** Those live in the browser's
-localStorage, which neither widget can read. That needs the backend described in
-the README.
+Both describe the same city: the Android app, the iOS widget and the web app all
+reproduce the same model from your location and the clock, and a parity test
+keeps them honest.
 
 ---
 
 ## Troubleshooting
 
-**Widget says "location unavailable"** — grant location (Scriptable on iOS, the
-Spidey Widget app on Android). iOS also needs Scriptable set to "While Using" or
-"Always" in Settings → Privacy → Location Services.
+**Android install blocked** — the APK is debug-signed. Settings → Apps → Special
+access → Install unknown apps, and allow whichever app you are opening it from.
 
-**Map is blank but pins show** — tile requests are failing. The pins and the
-model work offline; the basemap does not.
+**Map is dark grey with pins but no streets** — tile requests are failing. The
+pins and the model work offline; the basemap does not.
 
-**iPhone install has no icon** — you opened it in Chrome. iOS only installs PWAs
-from Safari.
+**Widget says "last known location"** — Android has no recent fix. Open the app
+once with location on; the widget uses the app's saved position as a fallback.
 
-**Android install blocked** — the APK is debug-signed, not from the Play Store.
-Allow your file manager to install unknown apps in Settings → Apps → Special
-access.
+**Patrol distance is not moving** — patrols track while the app is on screen. A
+PWA cannot hold a location watch in the background on iOS, and the Android app
+deliberately does not run a background service.
+
+**iPhone install has no icon** — you opened it in Chrome. iOS only installs web
+apps from Safari.

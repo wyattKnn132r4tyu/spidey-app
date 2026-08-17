@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws the UI; this only needs to stop a white flash on launch. -->
+    <style name="Theme.Spidey" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@color/ink2</item>
+        <item name="android:navigationBarColor">@color/ink2</item>
+    </style>
+</resources>

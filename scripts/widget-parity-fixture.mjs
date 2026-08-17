@@ -101,7 +101,7 @@ ${rows.map((r) => `        ${d(r.confidence)},`).join('\n')}
 
 const out = resolve(
   root,
-  'widgets/android/app/src/test/java/com/spidey/tracker/widget/ParityFixture.kt',
+  'android/app/src/test/java/com/spidey/tracker/widget/ParityFixture.kt',
 );
 await writeFile(out, kotlin, 'utf8');
 

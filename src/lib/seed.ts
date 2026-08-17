@@ -11,9 +11,9 @@ import { offset } from './geo';
  */
 
 const HANDLES = [
-  'queensrooftop', 'f_train_ghost', 'bodega_cat_92', 'nightshiftnurse',
+  'foresthills_frank', 'f_train_ghost', 'bodega_cat_92', 'nightshiftnurse',
   'chelsea_walkup', 'delivery_dave', 'astoria_ana', 'rooftop_gardener',
-  'lateshift_leo', 'bridge_and_tunnel', 'midtown_myra', 'sixthave_sam',
+  'lateshift_leo', 'bridge_and_tunnel', 'midtown_myra', 'flatiron_finch',
   'yellowcab_yuri', 'harlem_hana', 'brooklyn_bram', 'notjjjameson',
 ];
 
@@ -24,14 +24,15 @@ const NOTES = [
   'whole street stopped and looked up',
   'webbing on the streetlight is still there if you want to check',
   'gone before I got my phone out, obviously',
-  'kid next to me screamed. fair enough',
+  'nobody round here knows his name. we just know he turns up',
   'landed on the fire escape, waved, left',
-  '',
+  'kid outside the bodega called it before the rest of us looked up',
   '',
 ];
 
+/** Weighted pick list: the everyday reports outnumber the strange ones. */
 const TAGS: SightingTag[] = [
-  'swinging', 'swinging', 'red-blur', 'suit-spotted', 'stopped-something', 'webbing',
+  'swinging', 'swinging', 'red-blur', 'rooftop', 'stopped-something', 'acting-strange',
 ];
 
 /** Small deterministic PRNG so a reload does not reshuffle the city. */

@@ -73,7 +73,14 @@ export function buildBugle(sightings: Sighting[], home: LatLng, now = Date.now()
     let headline: string;
     let tone: BugleStory['tone'] = 'neutral';
 
-    if (heat === 'hot' && count >= 3) {
+    if (tag === 'acting-strange' && heat !== 'cold' && confirms > 0) {
+      // The thing nobody can see, reported by the only people who can: witnesses.
+      headline = `SOMETHING IS WRONG WITH PEOPLE ${where.toUpperCase()}`;
+      tone = 'alarm';
+    } else if (tag === 'heavy' && heat !== 'cold') {
+      headline = `SOMETHING BIG CAME THROUGH ${where.toUpperCase()}`;
+      tone = 'alarm';
+    } else if (heat === 'hot' && count >= 3) {
       headline = `${spell(count).toUpperCase()} SIGHTINGS ${where.toUpperCase()} INSIDE THE HOUR — MENACE?`;
       tone = 'alarm';
     } else if (tag === 'stopped-something' && heat !== 'cold' && confirms > 0) {
@@ -81,7 +88,8 @@ export function buildBugle(sightings: Sighting[], home: LatLng, now = Date.now()
       headline = `MASKED VIGILANTE INTERFERES AGAIN, ${where.toUpperCase()}`;
       tone = 'alarm';
     } else if (heat === 'hot') {
-      headline = `WEB-SLINGER CONFIRMED ${where.toUpperCase()}, CITY WATCHES`;
+      // Four years of this and the city still cannot put a name to him.
+      headline = `WHO IS HE? SIGHTING CONFIRMED ${where.toUpperCase()}, STILL NO NAME`;
       tone = 'alarm';
     } else if (denies > confirms) {
       headline = `'SIGHTING' ${where.toUpperCase()} COLLAPSES UNDER SCRUTINY`;

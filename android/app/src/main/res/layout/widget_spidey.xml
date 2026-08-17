@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews supports a limited set of views; LinearLayout + TextView only. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_background"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SPIDEY TRACKER"
+        android:textColor="@color/bezel_light"
+        android:textSize="7sp"
+        android:fontFamily="@font/press_start_2p" />
+
+    <TextView
+        android:id="@+id/widget_hot_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="0"
+        android:textColor="@color/pin_red"
+        android:textSize="26sp"
+        android:fontFamily="@font/press_start_2p" />
+
+    <TextView
+        android:id="@+id/widget_hot_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="HOT SIGHTINGS"
+        android:textColor="@color/muted"
+        android:textSize="6sp"
+        android:fontFamily="@font/press_start_2p" />
+
+    <TextView
+        android:id="@+id/widget_counts"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text=""
+        android:textColor="@color/pin_green"
+        android:textSize="6sp"
+        android:fontFamily="@font/press_start_2p" />
+
+    <TextView
+        android:id="@+id/widget_nearest"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text=""
+        android:textColor="@color/text"
+        android:textSize="6sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:fontFamily="@font/press_start_2p" />
+
+    <TextView
+        android:id="@+id/widget_fade"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text=""
+        android:textColor="@color/amber"
+        android:textSize="6sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:fontFamily="@font/press_start_2p" />
+</LinearLayout>

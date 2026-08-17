@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Spidey Widget</string>
-    <string name="widget_description">Hot sighting counts and the nearest one worth chasing.</string>
-    <string name="grant_location">Grant location</string>
-    <string name="open_app">Open Spidey Tracker</string>
-    <string name="refresh_widget">Refresh widget now</string>
-</resources>
