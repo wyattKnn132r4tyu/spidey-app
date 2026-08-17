@@ -33,9 +33,11 @@ Theme.kt               palette and the pixel type scale
 
 ## The look
 
-Modelled on the in-film Spidey Tracker as it appears at spideytracker.com: a
-blue plastic bezel around a navy map, ruler ticks down the edges, chunky pixel
-badges for pins, amber for anything meant to be pressed.
+Modelled on the in-film Spidey Tracker as it appears at spideytracker.com:
+a round amber hardware button and a white spider key either side of the title
+plate, ruler ticks down all four edges, a navy map ruled with a lat/long
+graticule, chunky pixel badges for pins, filter tabs hanging off the left edge,
+a counter strip over an amber callout, and the web compass in the corner.
 
 Everything is drawn in code rather than lifted: the spiders, the watcher sprite
 in the corner and the web compass are pixel grids defined in `ArcadeUi.kt` and
@@ -89,6 +91,12 @@ timestamps, vote counts, confidence to 1e-12. That is its whole job.
 | `SpideyRepositoryTest` | persistence, reseeding, votes, patrols, streaks |
 | `SpideyWidgetProviderTest` | widget renders, reads app state, opens the app |
 | `ScreenshotTest` | renders each screen to `build/screenshots/*.png` |
+
+Lifecycle is deliberate and tested where it can be: `start()` refuses to run
+twice, so a rotation cannot throw away a patrol in progress; the location watch
+and the decay clock both stop in `onPause`, because patrols are foreground-only
+and a timer behind the app is pure drain; and a running patrol is written to
+disk, so one survives the process being killed.
 
 Screens are clipped to their frame deliberately: the embedded `MapView` is a
 real Android view and will otherwise paint over the bezel.

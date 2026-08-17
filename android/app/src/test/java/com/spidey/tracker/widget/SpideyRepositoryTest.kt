@@ -252,6 +252,45 @@ class SpideyRepositoryTest {
     }
 
     @Test
+    fun `reads pins saved under a tag that no longer exists`() {
+        // Anyone upgrading from an earlier build has pins tagged "suit-spotted",
+        // which is not in the catalogue any more. They must still load, and still
+        // score, rather than taking the whole file down with them.
+        var state = repository.loadOrSeed(home, now)
+        state = repository.report(state, home, "suit-spotted", "old pin", false, now).first
+
+        val reloaded = repository.peek()!!
+        val old = reloaded.sightings.first { it.note == "old pin" }
+
+        assertEquals("suit-spotted", old.tag)
+        assertTrue(SpideyCore.confidenceOf(old, now) > 0)
+        assertNotNull(SpideyCore.tagMeta(old.tag).label)
+    }
+
+    @Test
+    fun `keeps a running patrol so it survives the process being killed`() {
+        var state = repository.loadOrSeed(home, now)
+        val running = patrol(750.0).copy(id = "in-progress")
+
+        state = repository.save(state.copy(activePatrol = running))
+
+        val reloaded = repository.loadOrSeed(home, now)
+        assertEquals("in-progress", reloaded.activePatrol?.id)
+        assertEquals(750.0, reloaded.activePatrol!!.distanceM, 1e-9)
+        assertEquals(1, reloaded.activePatrol!!.route.size)
+    }
+
+    @Test
+    fun `clears the running patrol once it is filed`() {
+        var state = repository.loadOrSeed(home, now)
+        state = repository.save(state.copy(activePatrol = patrol()))
+        state = repository.finishPatrol(state.copy(activePatrol = null), patrol(), now)
+
+        assertNull(repository.peek()!!.activePatrol)
+        assertEquals(1, repository.peek()!!.patrols.size)
+    }
+
+    @Test
     fun `reset clears history, reseeds and drops the streak with it`() {
         var state = repository.loadOrSeed(home, now)
         state = repository.report(state, home, "swinging", "mine", false, now).first

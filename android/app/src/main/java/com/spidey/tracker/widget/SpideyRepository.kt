@@ -39,6 +39,8 @@ class SpideyRepository(private val context: Context) {
         val profile: Profile,
         val home: SpideyCore.LatLng,
         val seededDay: String,
+        /** A patrol still running. Saved so one survives the process being killed. */
+        val activePatrol: Patrol? = null,
     )
 
     private val file: File get() = File(context.filesDir, FILE_NAME)
@@ -70,6 +72,7 @@ class SpideyRepository(private val context: Context) {
             profile = stored?.profile ?: newProfile(),
             home = home,
             seededDay = today,
+            activePatrol = stored?.activePatrol,
         )
         write(state)
         return state
@@ -201,6 +204,8 @@ class SpideyRepository(private val context: Context) {
             ),
             home = SpideyCore.LatLng(root.getDouble("homeLat"), root.getDouble("homeLng")),
             seededDay = root.optString("seededDay"),
+            activePatrol = if (root.isNull("activePatrol")) null
+            else root.getJSONObject("activePatrol").toPatrol(),
         )
     }
 
@@ -219,6 +224,7 @@ class SpideyRepository(private val context: Context) {
         root.put("homeLat", state.home.lat)
         root.put("homeLng", state.home.lng)
         root.put("seededDay", state.seededDay)
+        root.put("activePatrol", state.activePatrol?.toJson() ?: JSONObject.NULL)
 
         // Written whole: a half-written file is worse than a stale one.
         val temp = File(context.filesDir, "$FILE_NAME.tmp")

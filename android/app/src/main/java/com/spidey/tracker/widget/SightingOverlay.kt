@@ -25,7 +25,6 @@ class SightingOverlay(
     private var sightings: List<SpideyCore.Sighting> = emptyList(),
     private var now: Long = System.currentTimeMillis(),
     private var selectedId: String? = null,
-    private var myId: String? = null,
     private var onSelect: (String) -> Unit = {},
 ) : Overlay() {
 
@@ -39,13 +38,11 @@ class SightingOverlay(
         sightings: List<SpideyCore.Sighting>,
         now: Long,
         selectedId: String?,
-        myId: String?,
         onSelect: (String) -> Unit,
     ) {
         this.sightings = sightings
         this.now = now
         this.selectedId = selectedId
-        this.myId = myId
         this.onSelect = onSelect
     }
 
@@ -74,7 +71,7 @@ class SightingOverlay(
             val y = point.y.toFloat()
 
             // Your own reports read as a different kind of mark: a star, in blue.
-            val mine = myId != null && sighting.reporterHandleIsMine(myId!!)
+            val mine = !sighting.isSeeded
             val (fill, outline) = when {
                 mine -> Ink.pinBlue.toArgb() to Ink.pinBlueDark.toArgb()
                 else -> when (SpideyCore.heatOf(sighting, now)) {
@@ -167,8 +164,6 @@ class SightingOverlay(
         }
         return false
     }
-
-    private fun SpideyCore.Sighting.reporterHandleIsMine(myId: String) = id.startsWith("local-")
 
     companion object {
         /** 7x7 pixel spider: body, and legs reaching out either side. */

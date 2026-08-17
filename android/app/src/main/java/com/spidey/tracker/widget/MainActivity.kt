@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     model.start(hasLocation())
+                    model.onForeground()
                     if (!hasLocation()) {
                         permissionLauncher.launch(
                             arrayOf(
@@ -85,8 +86,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel?.onForeground()
+    }
+
     override fun onPause() {
         super.onPause()
+        // Stops the location watch and the decay clock: patrols are
+        // foreground-only, and a timer running behind the app is pure drain.
+        viewModel?.onBackground()
         // The home screen should reflect what the app knows.
         refreshWidgets()
     }

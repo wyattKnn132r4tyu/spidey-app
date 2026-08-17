@@ -113,6 +113,12 @@ class ScreenshotTest {
     }
 
     @Test
+    fun `map with nothing selected shows the counter and callout`() {
+        val state = sampleState().copy(selectedId = null)
+        assertNotBlank(capture("map-callout") { MapScreen(state, model()) })
+    }
+
+    @Test
     fun bugle() {
         val state = sampleState()
         assertNotBlank(capture("bugle") { BugleScreen(state, model()) })

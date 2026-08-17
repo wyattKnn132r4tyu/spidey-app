@@ -7,15 +7,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -23,10 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.material3.Text
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
@@ -39,49 +39,29 @@ import org.osmdroid.views.overlay.Polyline
 @Composable
 fun MapScreen(state: UiState, model: SpideyViewModel) {
     Box(Modifier.fillMaxSize().background(Ink.bezel)) {
-        Column(Modifier.fillMaxSize().padding(6.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
 
-            // ---- title row -------------------------------------------------
+            // ---- hardware row ----------------------------------------------
             Row(
-                Modifier.fillMaxWidth().height(46.dp).padding(bottom = 6.dp),
+                Modifier.fillMaxWidth().padding(bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Box(
-                    Modifier
-                        .background(Ink.amberDark)
-                        .padding(2.dp)
-                        .background(Ink.amber)
-                        .clickable { model.setTab(Tab.PATROL) }
-                        .padding(horizontal = 9.dp, vertical = 7.dp),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        repeat(3) {
-                            Box(Modifier.width(14.dp).height(2.dp).background(Ink.amberInk))
-                        }
-                    }
-                }
-
+                RoundButton(onClick = { model.setTab(Tab.PATROL) }) { HamburgerIcon() }
                 TitlePlate()
-
-                Box(
-                    Modifier
-                        .background(Ink.bezelDark)
-                        .padding(2.dp)
-                        .background(Ink.white)
-                        .clickable { model.setTab(Tab.BUGLE) }
-                        .padding(6.dp),
-                ) {
-                    PixelSpider(size = 16.dp, body = Ink.navyDeep, legs = Ink.navyDeep)
+                SquareButton(onClick = { model.setTab(Tab.BUGLE) }) {
+                    PixelSpider(size = 20.dp, body = Ink.navyDeep, legs = Ink.navyDeep)
                 }
             }
 
-            // ---- the screen itself -----------------------------------------
+            // ---- the screen -------------------------------------------------
             Box(
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(Ink.bezelDark)
+                    .background(Ink.navyDeep)
+                    .padding(2.dp)
+                    .background(Ink.bezelLight)
                     .padding(2.dp)
                     .background(Ink.navyDeep),
             ) {
@@ -99,49 +79,71 @@ fun MapScreen(state: UiState, model: SpideyViewModel) {
                     }
                     RulerEdge(vertical = false)
                 }
+
+                // Filter tabs hang off the left edge, half outside the screen.
+                Column(
+                    Modifier.align(Alignment.CenterStart).offset(x = (-10).dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    val now = state.clock
+                    EdgeTab(
+                        Ink.pinGreen,
+                        Ink.pinGreenDark,
+                        state.live.count { SpideyCore.heatOf(it, now) == SpideyCore.Heat.WARM },
+                    )
+                    EdgeTab(
+                        Ink.pinRed,
+                        Ink.pinRedDark,
+                        state.live.count { SpideyCore.heatOf(it, now) == SpideyCore.Heat.HOT },
+                    )
+                }
             }
 
-            // ---- share bar --------------------------------------------------
+            // ---- share bar ---------------------------------------------------
             Row(
                 Modifier.fillMaxWidth().padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                WatcherSprite(size = 34.dp, modifier = Modifier.padding(end = 6.dp))
+                WatcherSprite(size = 40.dp, modifier = Modifier.padding(end = 6.dp))
 
                 Box(
                     Modifier
                         .weight(1f)
+                        .background(Ink.navyDeep)
+                        .padding(2.dp)
                         .background(Ink.bezelLight)
                         .padding(2.dp)
                         .background(Ink.navyDeep)
                         .clickable { model.setReporting(true) }
-                        .padding(vertical = 11.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        "▪ SHARE YOUR SPIDEY SIGHTING",
-                        style = PixelType.small,
-                        color = Ink.text,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(5.dp).background(Ink.bezelLight))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "SHARE YOUR SPIDEY SIGHTING",
+                            style = PixelType.small,
+                            color = Ink.bezelLight,
+                        )
+                    }
                 }
 
-                Box(
-                    Modifier
-                        .padding(start = 6.dp)
-                        .background(Ink.amberDark)
-                        .padding(2.dp)
-                        .background(if (state.showHeat) Ink.amber else Ink.muted)
-                        .clickable { model.toggleHeat() }
-                        .padding(horizontal = 9.dp, vertical = 9.dp),
-                ) {
-                    Text("HEAT", style = PixelType.small, color = Ink.amberInk)
+                Box(Modifier.padding(start = 6.dp)) {
+                    SquareButton(
+                        size = 46.dp,
+                        fill = if (state.showHeat) Ink.bezelLight else Ink.muted,
+                        onClick = { model.toggleHeat() },
+                    ) {
+                        SpeakerIcon()
+                    }
                 }
             }
 
-            // ---- bottom buttons ----------------------------------------------
+            // ---- the two big buttons -----------------------------------------
             Row(
                 Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 AmberButton("The Bugle", Modifier.weight(1f)) { model.setTab(Tab.BUGLE) }
                 AmberButton(
@@ -157,69 +159,55 @@ fun MapScreen(state: UiState, model: SpideyViewModel) {
     if (state.reporting) ReportSheet(state, model)
 }
 
-/** Everything layered over the map: legend, callout, compass, detail card. */
+/** Everything layered over the map: counter, callout, compass, sighting card. */
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.MapFurniture(
-    state: UiState,
-    model: SpideyViewModel,
-) {
-    val now = state.clock
-    var hot = 0
-    var warm = 0
-    for (sighting in state.live) {
-        when (SpideyCore.heatOf(sighting, now)) {
-            SpideyCore.Heat.HOT -> hot++
-            SpideyCore.Heat.WARM -> warm++
-            else -> Unit
-        }
-    }
-
-    // "Unexplored" is the honest count here: sightings you have not voted on.
+private fun BoxScope.MapFurniture(state: UiState, model: SpideyViewModel) {
     val me = state.profile?.id
     val unexplored = state.live.count { sighting ->
-        me == null || (sighting.confirms.none { it.userId == me } &&
-            sighting.denies.none { it.userId == me })
-    }
-
-    Column(
-        Modifier.align(Alignment.CenterStart).padding(start = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        LegendBadge(Ink.pinGreen, Ink.pinGreenDark, warm)
-        LegendBadge(Ink.pinRed, Ink.pinRedDark, hot)
-    }
-
-    if (unexplored > 0 && state.selectedId == null) {
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 10.dp)
-                .background(Ink.amberDark)
-                .padding(2.dp)
-                .background(Ink.amber)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-        ) {
-            Text(
-                "$unexplored UNEXPLORED\nSIGHTINGS",
-                style = PixelType.small,
-                color = Ink.amberInk,
-                textAlign = TextAlign.Center,
+        me == null || (
+            sighting.confirms.none { it.userId == me } &&
+                sighting.denies.none { it.userId == me }
             )
+    }
+
+    if (state.selectedId == null) {
+        Column(
+            Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            CounterStrip(total = state.live.size, unexplored = unexplored)
+
+            if (unexplored > 0) {
+                Box(
+                    Modifier
+                        .padding(top = 6.dp)
+                        .background(Ink.amberInk)
+                        .padding(2.dp)
+                        .background(Ink.amber)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        "$unexplored UNEXPLORED\n   SIGHTINGS",
+                        style = PixelType.small,
+                        color = Ink.amberInk,
+                    )
+                }
+            }
         }
     }
 
-    WebCompass(
-        size = 84.dp,
-        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-    )
+    WebCompass(size = 92.dp, modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp))
 
     state.selected?.let { sighting ->
-        SightingCard(
-            sighting = sighting,
-            state = state,
-            model = model,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp, start = 8.dp, end = 8.dp),
-        )
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp, start = 6.dp, end = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SightingCard(sighting, state, model)
+            CardTail()
+        }
     }
 }
 
@@ -227,6 +215,7 @@ private fun androidx.compose.foundation.layout.BoxScope.MapFurniture(
 private fun OsmMap(state: UiState, model: SpideyViewModel) {
     val context = LocalContext.current
     val overlay = remember { SightingOverlay() }
+    val grid = remember { GraticuleOverlay() }
 
     val mapView = remember {
         Configuration.getInstance().apply {
@@ -246,8 +235,8 @@ private fun OsmMap(state: UiState, model: SpideyViewModel) {
             zoomController.setVisibility(
                 org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER,
             )
-            // Recolours the standard basemap to the deep navy the film's version
-            // uses: crush saturation, then push everything into the blues.
+            // Recolours the standard basemap into the deep navy the film's
+            // version uses: crush saturation, then push everything into blue.
             overlayManager.tilesOverlay.setColorFilter(
                 ColorMatrixColorFilter(
                     ColorMatrix(
@@ -262,6 +251,7 @@ private fun OsmMap(state: UiState, model: SpideyViewModel) {
             )
             controller.setZoom(14.0)
             controller.setCenter(GeoPoint(state.home.lat, state.home.lng))
+            overlays.add(grid)
             overlays.add(overlay)
 
             addMapListener(object : MapListener {
@@ -279,7 +269,11 @@ private fun OsmMap(state: UiState, model: SpideyViewModel) {
 
     DisposableEffect(Unit) {
         mapView.onResume()
-        onDispose { mapView.onPause() }
+        onDispose {
+            mapView.onPause()
+            // Releases the tile provider's threads and cache handles.
+            mapView.onDetach()
+        }
     }
 
     AndroidView(
@@ -290,7 +284,6 @@ private fun OsmMap(state: UiState, model: SpideyViewModel) {
                 sightings = state.live,
                 now = state.clock,
                 selectedId = state.selectedId,
-                myId = state.profile?.id,
                 onSelect = { model.select(it) },
             )
 
@@ -311,13 +304,12 @@ private fun OsmMap(state: UiState, model: SpideyViewModel) {
     )
 }
 
-/** The pin readout, styled as a pixel card like the film's "view sighting" popup. */
+/** The pin readout, styled as the film's popup card. */
 @Composable
 private fun SightingCard(
     sighting: SpideyCore.Sighting,
     state: UiState,
     model: SpideyViewModel,
-    modifier: Modifier = Modifier,
 ) {
     val now = state.clock
     val heat = SpideyCore.heatOf(sighting, now)
@@ -333,19 +325,17 @@ private fun SightingCard(
     }
 
     Column(
-        modifier
+        Modifier
             .fillMaxWidth()
+            .background(Ink.navyDeep)
+            .padding(2.dp)
             .background(Ink.bezelLight)
             .padding(2.dp)
             .background(Ink.navyDeep)
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .background(heatColor(heat))
-                    .padding(horizontal = 5.dp, vertical = 3.dp),
-            ) {
+            Box(Modifier.background(heatColor(heat)).padding(horizontal = 5.dp, vertical = 3.dp)) {
                 Text(
                     when (heat) {
                         SpideyCore.Heat.HOT -> "HOT"
@@ -357,7 +347,7 @@ private fun SightingCard(
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text(meta.label.uppercase(), style = PixelType.small, color = Ink.text)
+            Text(meta.label.uppercase(), style = PixelType.small, color = Ink.white)
             Spacer(Modifier.weight(1f))
             Text(
                 "X",
@@ -371,13 +361,13 @@ private fun SightingCard(
             Text(
                 it,
                 style = PixelType.tiny,
-                color = Ink.muted,
+                color = Ink.text,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
 
         Text(
-            "@${sighting.reporterHandle} · ${SpideyCore.formatDistance(away)} away",
+            "@${sighting.reporterHandle} · ${SpideyCore.formatDistance(away)} AWAY",
             style = PixelType.tiny,
             color = Ink.muted,
             modifier = Modifier.padding(top = 8.dp),
@@ -392,7 +382,7 @@ private fun SightingCard(
                 },
             style = PixelType.tiny,
             color = Ink.muted,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 5.dp),
         )
 
         Row(

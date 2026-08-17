@@ -52,15 +52,23 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
     private var stored: SpideyRepository.State? = null
     private var clockJob: Job? = null
     private var listening = false
-
-    init {
-        startClock()
-    }
+    private var foreground = false
 
     // ---- lifecycle ---------------------------------------------------------
 
-    /** Called once the activity knows whether it has location permission. */
+    /**
+     * Called once the activity knows whether it has location permission.
+     *
+     * Guarded against a second run: the activity's LaunchedEffect fires again
+     * after a rotation, and reloading here would throw away an in-progress
+     * patrol along with the rest of the live state.
+     */
     fun start(hasLocation: Boolean) {
+        if (_state.value.ready) {
+            if (hasLocation && _state.value.locationDenied) onLocationGranted()
+            return
+        }
+
         val fix = if (hasLocation) lastKnown() else null
         val home = fix ?: _state.value.home
 
@@ -74,6 +82,8 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
             locationDenied = !hasLocation,
             sightings = loaded.sightings,
             patrols = loaded.patrols,
+            // A patrol that was running when the process died is picked back up.
+            activePatrol = loaded.activePatrol,
             profile = loaded.profile,
             clock = System.currentTimeMillis(),
         )
@@ -81,8 +91,28 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
         if (hasLocation) listen()
     }
 
-    private fun startClock() {
+    /**
+     * Patrols are foreground-only by design, so the location watch and the decay
+     * clock both stop with the app rather than draining the battery behind it.
+     */
+    fun onForeground() {
+        foreground = true
+        _state.value = _state.value.copy(clock = System.currentTimeMillis())
+        startClock()
+        if (!_state.value.locationDenied) listen()
+    }
+
+    fun onBackground() {
+        foreground = false
         clockJob?.cancel()
+        clockJob = null
+        stopListening()
+        // An in-progress patrol survives the process being killed while away.
+        persistActivePatrol()
+    }
+
+    private fun startClock() {
+        if (clockJob != null) return
         clockJob = viewModelScope.launch {
             while (true) {
                 delay(15_000)
@@ -201,7 +231,7 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
         val at = current.position ?: current.mapCentre ?: current.home
 
         val (next, sighting) = repository.report(
-            base.copy(sightings = current.sightings),
+            base.copy(sightings = current.sightings, activePatrol = current.activePatrol),
             at,
             tagId,
             note,
@@ -224,7 +254,7 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
         val base = stored ?: return
 
         val next = repository.vote(
-            base.copy(sightings = current.sightings),
+            base.copy(sightings = current.sightings, activePatrol = current.activePatrol),
             sightingId,
             confirm,
             current.position ?: current.home,
@@ -236,17 +266,16 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startPatrol() {
         val current = _state.value
-        _state.value = current.copy(
-            activePatrol = SpideyRepository.Patrol(
-                id = "patrol-${System.currentTimeMillis().toString(36)}-${Random.nextInt(999)}",
-                startedAt = System.currentTimeMillis(),
-                endedAt = null,
-                route = listOfNotNull(current.position),
-                distanceM = 0.0,
-                sightingIds = emptyList(),
-            ),
-            tab = Tab.MAP,
+        val patrol = SpideyRepository.Patrol(
+            id = "patrol-${System.currentTimeMillis().toString(36)}-${Random.nextInt(999)}",
+            startedAt = System.currentTimeMillis(),
+            endedAt = null,
+            route = listOfNotNull(current.position),
+            distanceM = 0.0,
+            sightingIds = emptyList(),
         )
+        _state.value = current.copy(activePatrol = patrol, tab = Tab.MAP)
+        persistActivePatrol()
         listen()
     }
 
@@ -255,7 +284,10 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
         val patrol = current.activePatrol ?: return
         val base = stored ?: return
 
-        val next = repository.finishPatrol(base.copy(sightings = current.sightings), patrol)
+        val next = repository.finishPatrol(
+            base.copy(sightings = current.sightings, activePatrol = null),
+            patrol,
+        )
         stored = next
 
         _state.value = current.copy(
@@ -282,6 +314,15 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
     fun onLocationGranted() {
         val fix = lastKnown()
         if (fix != null) _state.value = _state.value.copy(position = fix, locationDenied = false)
+        else _state.value = _state.value.copy(locationDenied = false)
         listen()
+    }
+
+    private fun persistActivePatrol() {
+        val base = stored ?: return
+        val current = _state.value
+        stored = repository.save(
+            base.copy(sightings = current.sightings, activePatrol = current.activePatrol),
+        )
     }
 }
