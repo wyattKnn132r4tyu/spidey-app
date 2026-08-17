@@ -15,6 +15,9 @@ npm run dev
 Open it on a phone (or a narrow browser window) — it is built mobile-first and
 installs as a PWA.
 
+**Installing it on a phone, with home screen widgets for iOS and Android:** see
+[`INSTALL.md`](INSTALL.md).
+
 ## How it works
 
 ### Confidence decay
@@ -68,6 +71,13 @@ src/
   store/useStore.ts single zustand store
   components/       map, heat layer, report sheet, detail, feed, patrol
   hooks/useTracking.ts  geolocation watch + the decay clock
+
+widgets/
+  ios/              Scriptable widget, bundled from src/lib
+  android/          Kotlin widget, held to src/lib by a parity test
+scripts/
+  build-widget.mjs         bundles src/lib into the iOS widget
+  widget-parity-fixture.mjs generates the Android parity fixture
 ```
 
 The map is a plain Leaflet instance driven by effects rather than a React

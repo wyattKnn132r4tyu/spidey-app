@@ -76,7 +76,10 @@ export function seedSightings(home: LatLng, now = Date.now()): Sighting[] {
 
     for (let i = 0; i < cluster.count; i++) {
       const at = offset(centre, random() * cluster.radiusM, random() * 360);
-      const createdAt = now - (cluster.ageMin + random() * 20 - 10) * MINUTE;
+      // Never in the future: a not-yet-elapsed timestamp has its decay clamped,
+      // which would break the exact exponential the cooldown countdown relies on.
+      const ageMinutes = Math.max(1, cluster.ageMin + random() * 20 - 10);
+      const createdAt = now - ageMinutes * MINUTE;
       const confirmCount = Math.max(0, Math.round(cluster.confirms * (0.5 + random())));
       const denyCount = random() < 0.35 ? Math.round(random() * 2) : 0;
 

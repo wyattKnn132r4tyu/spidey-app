@@ -49,6 +49,7 @@ const persist = (state: State) =>
     patrols: state.patrols,
     profile: state.profile,
     seededFor: state.home,
+    seededDay: dayKey(Date.now()),
   });
 
 function getCurrentPosition(): Promise<LatLng | null> {
@@ -82,10 +83,12 @@ export const useStore = create<State>((set, get) => ({
     const fix = await getCurrentPosition();
     const home = fix ?? stored?.seededFor ?? DEFAULT_HOME;
 
-    // Re-seed if this is a first run, or if the user has moved far enough that
-    // the old city's pins are no longer anywhere near them.
-    const staleSeed =
-      !stored || (stored.seededFor ? distanceM(stored.seededFor, home) > 20_000 : true);
+    // Re-seed on a first run, on a new day (the generator is day-keyed, and
+    // yesterday's pins have decayed to nothing), or when the user has moved far
+    // enough that the old city's pins are nowhere near them.
+    const movedCities = stored?.seededFor ? distanceM(stored.seededFor, home) > 20_000 : true;
+    const newDay = stored?.seededDay !== dayKey(Date.now());
+    const staleSeed = !stored || movedCities || newDay;
 
     set({
       ready: true,

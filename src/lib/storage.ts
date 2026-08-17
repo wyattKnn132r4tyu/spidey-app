@@ -7,6 +7,10 @@ export interface PersistedState {
   patrols: Patrol[];
   profile: UserProfile;
   seededFor?: { lat: number; lng: number };
+  /** UTC day the seed was generated for. The generator is day-keyed, so a new
+   *  day needs a new set — otherwise the map slowly decays to empty and looks
+   *  broken, and the home screen widget (which reseeds daily) disagrees. */
+  seededDay?: string;
 }
 
 const HANDLE_PARTS = [
