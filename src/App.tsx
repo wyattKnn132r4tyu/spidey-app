@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useStore } from './store/useStore';
 import { useTracking } from './hooks/useTracking';
 import { MapView } from './components/MapView';
@@ -11,8 +11,18 @@ import { heatOf } from './lib/confidence';
 
 function HotCount() {
   const { sightings, clock } = useStore();
-  const hot = sightings.filter((s) => heatOf(s, clock) === 'hot').length;
-  const warm = sightings.filter((s) => heatOf(s, clock) === 'warm').length;
+
+  // One pass, one heat computation per sighting.
+  const { hot, warm } = useMemo(() => {
+    let hot = 0;
+    let warm = 0;
+    for (const sighting of sightings) {
+      const heat = heatOf(sighting, clock);
+      if (heat === 'hot') hot += 1;
+      else if (heat === 'warm') warm += 1;
+    }
+    return { hot, warm };
+  }, [sightings, clock]);
 
   return (
     <div className="ticker">

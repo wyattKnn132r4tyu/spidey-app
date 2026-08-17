@@ -86,6 +86,17 @@ lines, which was cheaper than another dependency.
 
 Tiles are CARTO's dark basemap over OpenStreetMap data.
 
+## Tests
+
+```bash
+npm test                        # model, store and persistence
+cd widgets/android && gradle :app:testDebugUnitTest   # Kotlin parity + widget render
+```
+
+The suite runs in `America/New_York` on purpose. Seeding is keyed to the UTC day
+so the app and the widgets agree, while streaks count local days — under UTC a
+mistake in either is invisible.
+
 ## Not in v0
 
 Multi-user and realtime pins (the natural next step: Supabase, whose realtime

@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:widget": "node scripts/build-widget.mjs",
-    "build:parity": "node scripts/widget-parity-fixture.mjs"
+    "build:parity": "node scripts/widget-parity-fixture.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
@@ -23,9 +25,12 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   }
 }

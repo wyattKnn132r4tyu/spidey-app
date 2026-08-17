@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useStore } from '../store/useStore';
-import { confidenceOf, heatOf } from '../lib/confidence';
+import { confidenceOf, heatOf, isLive } from '../lib/confidence';
 import { TAG_BY_ID } from '../types';
 import { HeatLayer } from './HeatLayer';
 
@@ -13,10 +13,33 @@ export function MapView() {
   const heatRef = useRef<HeatLayer>(null);
   const routeRef = useRef<L.Polyline>(null);
   const meRef = useRef<L.CircleMarker>(null);
-
   const centredRef = useRef(false);
 
-  const { position, sightings, activePatrol, showHeat, selectedId, clock, select } = useStore();
+  const {
+    tab,
+    position,
+    sightings,
+    activePatrol,
+    showHeat,
+    selectedId,
+    clock,
+    select,
+    setMapCentre,
+  } = useStore();
+
+  // Pins below this are noise: too old or too disputed to be worth drawing.
+  const live = useMemo(() => sightings.filter((s) => isLive(s, clock)), [sightings, clock]);
+
+  /**
+   * Markers are expensive to rebuild and the clock ticks every 15 seconds, so
+   * they are only recreated when something visible actually changed — the set of
+   * pins, one of their heat bands, or the selection. Without this, every tick
+   * tore down and rebuilt the whole layer, cancelling hover states mid-gesture.
+   */
+  const pinSignature = useMemo(
+    () => `${live.map((s) => `${s.id}:${heatOf(s, clock)}`).join('|')}#${selectedId ?? ''}`,
+    [live, clock, selectedId],
+  );
 
   // Create the map once. `home` is already resolved by the time this mounts —
   // App renders the boot screen until the store is ready — so it is read from
@@ -39,15 +62,35 @@ export function MapView() {
 
     L.control.zoom({ position: 'topright' }).addTo(map);
 
+    const publishCentre = () => {
+      const centre = map.getCenter();
+      useStore.getState().setMapCentre({ lat: centre.lat, lng: centre.lng });
+    };
+    map.on('moveend', publishCentre);
+    publishCentre();
+
     mapRef.current = map;
     pinsRef.current = L.layerGroup().addTo(map);
     heatRef.current = new HeatLayer();
 
     return () => {
+      map.off('moveend', publishCentre);
       map.remove();
       mapRef.current = null;
+      pinsRef.current = null;
+      heatRef.current = null;
+      routeRef.current = null;
+      meRef.current = null;
     };
-  }, []);
+  }, [setMapCentre]);
+
+  /**
+   * The map stays mounted behind the other tabs, so it can miss a resize while
+   * hidden — a rotation on the Bugle tab leaves grey gaps when you come back.
+   */
+  useEffect(() => {
+    if (tab === 'map') mapRef.current?.invalidateSize();
+  }, [tab]);
 
   // Recentre on the first real fix only — after that the view is the user's.
   useEffect(() => {
@@ -67,14 +110,10 @@ export function MapView() {
 
     if (showHeat) {
       heat.setPoints(
-        sightings.map((s) => ({
-          lat: s.lat,
-          lng: s.lng,
-          intensity: confidenceOf(s, clock),
-        })),
+        live.map((s) => ({ lat: s.lat, lng: s.lng, intensity: confidenceOf(s, clock) })),
       );
     }
-  }, [showHeat, sightings, clock]);
+  }, [showHeat, live, clock]);
 
   // Pins.
   useEffect(() => {
@@ -82,7 +121,7 @@ export function MapView() {
     if (!pins) return;
     pins.clearLayers();
 
-    for (const sighting of sightings) {
+    for (const sighting of live) {
       const heat = heatOf(sighting, clock);
       const meta = TAG_BY_ID[sighting.tag];
       const selected = sighting.id === selectedId;
@@ -96,25 +135,42 @@ export function MapView() {
         iconAnchor: [17, 17],
       });
 
-      L.marker([sighting.lat, sighting.lng], { icon, riseOnHover: true })
+      // In a dense cluster pins overlap, and whichever was added last wins the
+      // tap. Stack them by importance so the hot pin is the one you can hit.
+      const zIndexOffset = (selected ? 3000 : 0) + { hot: 2000, warm: 1000, cold: 0 }[heat];
+
+      L.marker([sighting.lat, sighting.lng], { icon, riseOnHover: true, zIndexOffset })
         .on('click', () => select(sighting.id))
         .addTo(pins);
     }
-  }, [sightings, selectedId, clock, select]);
+    // `clock` and `live` are read above but deliberately not dependencies: the
+    // signature is what decides when a redraw is actually needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinSignature, select]);
 
-  // Patrol route.
+  // Patrol route. Moved rather than recreated — this changes on every GPS fix.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    routeRef.current?.remove();
-    routeRef.current = null;
+    const points = activePatrol?.route.map((p) => [p.lat, p.lng] as L.LatLngTuple) ?? [];
 
-    if (activePatrol && activePatrol.route.length > 1) {
-      routeRef.current = L.polyline(
-        activePatrol.route.map((p) => [p.lat, p.lng] as L.LatLngTuple),
-        { className: 'patrol-line', color: '#8be9fd', weight: 3, dashArray: '1 7', opacity: 0.9 },
-      ).addTo(map);
+    if (points.length < 2) {
+      routeRef.current?.remove();
+      routeRef.current = null;
+      return;
+    }
+
+    if (routeRef.current) {
+      routeRef.current.setLatLngs(points);
+    } else {
+      routeRef.current = L.polyline(points, {
+        className: 'patrol-line',
+        color: '#8be9fd',
+        weight: 3,
+        dashArray: '1 7',
+        opacity: 0.9,
+      }).addTo(map);
     }
   }, [activePatrol]);
 

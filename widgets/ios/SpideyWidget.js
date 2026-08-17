@@ -319,7 +319,7 @@ async function resolveLocation() {
     const value = { lat: fix.latitude, lng: fix.longitude };
     Keychain.set(LOCATION_KEY, JSON.stringify(value));
     return { ...value, source: 'live' };
-  } catch (error) {
+  } catch {
     if (Keychain.contains(LOCATION_KEY)) {
       try {
         return { ...JSON.parse(Keychain.get(LOCATION_KEY)), source: 'cached' };
@@ -497,14 +497,24 @@ function buildMedium(widget, data) {
   }
 }
 
-/** Lock screen accessory widgets are monochrome and tiny. */
-function buildAccessory(widget, data) {
+/**
+ * Lock screen accessory widgets are monochrome and tiny. Inline in particular
+ * renders a single line of text, so it gets one string rather than a stack.
+ */
+function buildAccessory(widget, data, inline) {
+  const summary = `${data.counts.hot} hot · ${data.counts.warm} warm`;
+
+  if (inline) {
+    widget.addText(`🕸 ${summary}`);
+    return;
+  }
+
   const line = widget.addStack();
   line.centerAlignContent();
   const mark = line.addText('🕸');
   mark.font = Font.systemFont(12);
   line.addSpacer(4);
-  const text = line.addText(`${data.counts.hot} hot · ${data.counts.warm} warm`);
+  const text = line.addText(summary);
   text.font = Font.boldSystemFont(12);
 }
 
@@ -514,21 +524,24 @@ async function build() {
 
   const widget = new ListWidget();
   widget.url = APP_URL;
-  widget.backgroundColor = COLOR.bg;
-  widget.setPadding(12, 12, 12, 12);
 
   const family = config.widgetFamily ?? 'medium';
+  const accessory = family === 'accessoryInline' || family === 'accessoryRectangular';
 
-  if (family === 'accessoryInline' || family === 'accessoryRectangular') {
-    widget.backgroundColor = new Color('#00000000');
-    buildAccessory(widget, data);
-  } else if (family === 'small') {
-    buildSmall(widget, data);
+  if (accessory) {
+    // The lock screen paints its own backdrop; anything opaque here looks wrong,
+    // and its padding budget is far tighter than a home screen widget's.
+    widget.backgroundColor = new Color('#000000', 0);
+    widget.setPadding(0, 0, 0, 0);
+    buildAccessory(widget, data, family === 'accessoryInline');
   } else {
-    buildMedium(widget, data);
+    widget.backgroundColor = COLOR.bg;
+    widget.setPadding(12, 12, 12, 12);
+    if (family === 'small') buildSmall(widget, data);
+    else buildMedium(widget, data);
   }
 
-  if (home.source !== 'live' && family !== 'accessoryInline') {
+  if (home.source !== 'live' && !accessory) {
     widget.addSpacer(2);
     const stale = widget.addText(
       home.source === 'cached' ? 'last known location' : 'location unavailable',

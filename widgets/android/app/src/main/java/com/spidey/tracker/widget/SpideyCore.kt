@@ -225,11 +225,14 @@ object SpideyCore {
 
     enum class Heat { HOT, WARM, COLD }
 
-    fun heatOf(sighting: Sighting, now: Long): Heat = when {
-        confidenceOf(sighting, now) >= HOT_THRESHOLD -> Heat.HOT
-        confidenceOf(sighting, now) >= WARM_THRESHOLD -> Heat.WARM
+    fun heatFromConfidence(confidence: Double): Heat = when {
+        confidence >= HOT_THRESHOLD -> Heat.HOT
+        confidence >= WARM_THRESHOLD -> Heat.WARM
         else -> Heat.COLD
     }
+
+    fun heatOf(sighting: Sighting, now: Long): Heat =
+        heatFromConfidence(confidenceOf(sighting, now))
 
     private fun scoreForConfidence(confidence: Double) =
         SATURATION * confidence / (1 - confidence)

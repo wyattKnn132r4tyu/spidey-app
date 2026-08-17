@@ -1,11 +1,17 @@
 import { useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { buildBugle } from '../lib/bugle';
+import { isLive } from '../lib/confidence';
 import { formatAgo } from '../lib/geo';
 
 export function BugleFeed() {
   const { sightings, home, clock, select, setTab } = useStore();
-  const stories = useMemo(() => buildBugle(sightings, home, clock), [sightings, home, clock]);
+
+  // Dead pins are not news, and they should not be on the map either.
+  const stories = useMemo(
+    () => buildBugle(sightings.filter((s) => isLive(s, clock)), home, clock),
+    [sightings, home, clock],
+  );
 
   return (
     <div className="panel">

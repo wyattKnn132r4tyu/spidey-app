@@ -75,7 +75,8 @@ export class HeatLayer extends L.Layer {
 
     const ratio = window.devicePixelRatio || 1;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // In CSS pixels, because the transform is already applied.
+    ctx.clearRect(0, 0, this.canvas.width / ratio, this.canvas.height / ratio);
     ctx.globalCompositeOperation = 'lighter';
 
     // Zoomed-out views should not turn the whole city into one blob.

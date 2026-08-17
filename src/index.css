@@ -150,6 +150,11 @@ button {
   transition: transform 120ms ease;
 }
 
+/* Decorative: let taps fall through to the pin itself. */
+.pin__glyph {
+  pointer-events: none;
+}
+
 .pin--warm {
   border-color: var(--warm);
   box-shadow: 0 0 12px rgba(255, 176, 58, 0.45);

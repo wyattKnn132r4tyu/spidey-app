@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { LatLng, Patrol, Sighting, SightingTag, UserProfile } from '../types';
-import { dayKey, distanceM, routeLength } from '../lib/geo';
+import { dayKey, distanceM, localDayKey } from '../lib/geo';
 import { seedSightings } from '../lib/seed';
 import { load, makeProfile, save, clear } from '../lib/storage';
 
@@ -9,6 +9,13 @@ export const DEFAULT_HOME: LatLng = { lat: 40.7484, lng: -73.9857 };
 
 /** Ignore GPS jitter below this when accumulating a patrol route. */
 const MIN_STEP_M = 8;
+
+/**
+ * Drop fixes vaguer than this while patrolling. A phone that briefly falls back
+ * to cell-tower positioning reports jumps of hundreds of metres without the user
+ * moving, which would otherwise be banked as distance covered.
+ */
+const MAX_ACCURACY_M = 50;
 
 export type Tab = 'map' | 'bugle' | 'patrol';
 
@@ -25,11 +32,14 @@ interface State {
   selectedId: string | null;
   reporting: boolean;
   showHeat: boolean;
+  /** Where the map is looking. Used to place a pin when there is no GPS fix. */
+  mapCentre: LatLng | null;
   /** Bumped on a timer so decaying values re-render. */
   clock: number;
 
   init: () => Promise<void>;
-  setPosition: (at: LatLng) => void;
+  setPosition: (at: LatLng, accuracyM?: number) => void;
+  setMapCentre: (at: LatLng) => void;
   setTab: (tab: Tab) => void;
   select: (id: string | null) => void;
   setReporting: (open: boolean) => void;
@@ -76,6 +86,7 @@ export const useStore = create<State>((set, get) => ({
   selectedId: null,
   reporting: false,
   showHeat: true,
+  mapCentre: null,
   clock: Date.now(),
 
   init: async () => {
@@ -104,18 +115,29 @@ export const useStore = create<State>((set, get) => ({
     persist(get());
   },
 
-  setPosition: (at) => {
+  setPosition: (at, accuracyM) => {
     const { activePatrol } = get();
     set({ position: at, locationDenied: false });
 
     if (!activePatrol) return;
+    if (accuracyM !== undefined && accuracyM > MAX_ACCURACY_M) return;
 
     const last = activePatrol.route[activePatrol.route.length - 1];
-    if (last && distanceM(last, at) < MIN_STEP_M) return;
+    const step = last ? distanceM(last, at) : 0;
+    if (last && step < MIN_STEP_M) return;
 
-    const route = [...activePatrol.route, at];
-    set({ activePatrol: { ...activePatrol, route, distanceM: routeLength(route) } });
+    set({
+      activePatrol: {
+        ...activePatrol,
+        route: [...activePatrol.route, at],
+        // Accumulated, not recomputed: re-measuring the whole route on every fix
+        // is quadratic, and a long patrol is thousands of fixes.
+        distanceM: activePatrol.distanceM + step,
+      },
+    });
   },
+
+  setMapCentre: (mapCentre) => set({ mapCentre }),
 
   setTab: (tab) => set({ tab }),
   select: (selectedId) => set({ selectedId }),
@@ -124,8 +146,10 @@ export const useStore = create<State>((set, get) => ({
   tick: () => set({ clock: Date.now() }),
 
   report: (tag, note) => {
-    const { position, home, profile, activePatrol } = get();
-    const at = position ?? home;
+    const { position, mapCentre, home, profile, activePatrol } = get();
+    // Without a fix, the pin goes where the user is looking — which is what the
+    // report sheet tells them will happen.
+    const at = position ?? mapCentre ?? home;
     const sighting: Sighting = {
       id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       lat: at.lat,
@@ -194,8 +218,9 @@ export const useStore = create<State>((set, get) => ({
     if (!activePatrol) return;
 
     const finished: Patrol = { ...activePatrol, endedAt: Date.now() };
-    const today = dayKey(finished.endedAt!);
-    const yesterday = dayKey(finished.endedAt! - 86_400_000);
+    // Local days, not UTC: a streak is about the user's evenings, not Greenwich's.
+    const today = localDayKey(finished.endedAt!);
+    const yesterday = localDayKey(finished.endedAt! - 86_400_000);
 
     // A streak survives one calendar day of silence, not two.
     const streakDays =
@@ -216,8 +241,15 @@ export const useStore = create<State>((set, get) => ({
 
   reset: () => {
     clear();
-    const home = get().home;
-    set({ sightings: seedSightings(home), patrols: [], activePatrol: null, selectedId: null });
+    const { home, profile } = get();
+    set({
+      sightings: seedSightings(home),
+      patrols: [],
+      activePatrol: null,
+      selectedId: null,
+      // The streak counted patrols that no longer exist.
+      profile: { ...profile, streakDays: 0, lastPatrolDay: undefined },
+    });
     persist(get());
   },
 }));

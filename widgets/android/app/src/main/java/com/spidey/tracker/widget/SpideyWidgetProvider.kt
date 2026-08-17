@@ -72,14 +72,20 @@ class SpideyWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.widget_nearest, nearest)
 
         val fade = summary.fadeMs
+        val fadeText = when {
+            fade == null -> ""
+            summary.nearestHeat == SpideyCore.Heat.HOT -> "cools in ${SpideyCore.formatMinutes(fade)}"
+            else -> "cold in ${SpideyCore.formatMinutes(fade)}"
+        }
+
+        // The staleness warning has to survive alongside the countdown — showing it
+        // only when there is no countdown hid it exactly when the pins were most
+        // likely to be wrong.
         views.setTextViewText(
             R.id.widget_fade,
-            when {
-                fade == null -> if (home.stale) "last known location" else ""
-                summary.nearestHeat == SpideyCore.Heat.HOT ->
-                    "cools in ${SpideyCore.formatMinutes(fade)}"
-                else -> "cold in ${SpideyCore.formatMinutes(fade)}"
-            },
+            listOf(fadeText, if (home.stale) "last known location" else "")
+                .filter { it.isNotEmpty() }
+                .joinToString(" · "),
         )
 
         // Tapping anywhere opens the web app.
@@ -113,7 +119,14 @@ class SpideyWidgetProvider : AppWidgetProvider() {
                     .putFloat(KEY_LAT, location.latitude.toFloat())
                     .putFloat(KEY_LNG, location.longitude.toFloat())
                     .apply()
-                return Fix(SpideyCore.LatLng(location.latitude, location.longitude), false)
+
+                // "Last known" can mean last week, in another city. Still the best
+                // guess available, but say so rather than presenting it as current.
+                val age = System.currentTimeMillis() - location.time
+                return Fix(
+                    SpideyCore.LatLng(location.latitude, location.longitude),
+                    stale = age > MAX_FIX_AGE_MS,
+                )
             }
         }
 
@@ -149,6 +162,9 @@ class SpideyWidgetProvider : AppWidgetProvider() {
     companion object {
         const val ACTION_REFRESH = "com.spidey.tracker.widget.REFRESH"
         const val APP_URL = "https://wyattknn132r4tyu.github.io/spidey-app/"
+
+        /** Beyond this, a cached fix is reported as stale rather than current. */
+        private const val MAX_FIX_AGE_MS = 6 * 60 * 60 * 1000L
 
         private const val PREFS = "spidey-widget"
         private const val KEY_LAT = "lat"

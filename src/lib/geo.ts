@@ -82,6 +82,22 @@ export function routeLength(route: LatLng[]): number {
   return total;
 }
 
+/**
+ * UTC day. Used for seeding, where it must agree with the home screen widgets —
+ * they reseed on the same key and would otherwise disagree with the app.
+ */
 export function dayKey(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+/**
+ * The day as the user experiences it. Streaks have to use this: on UTC days, an
+ * evening patrol either side of UTC midnight reads as two days, handing out a
+ * streak the user did not earn (and breaking one they did, further east).
+ */
+export function localDayKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }

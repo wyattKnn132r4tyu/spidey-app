@@ -3,7 +3,8 @@ import { useStore } from '../store/useStore';
 import { TAGS, type SightingTag } from '../types';
 
 export function ReportSheet() {
-  const { reporting, setReporting, report, position, locationDenied, activePatrol } = useStore();
+  const { reporting, setReporting, report, position, locationDenied, activePatrol, mapCentre } =
+    useStore();
   const [tag, setTag] = useState<SightingTag>('swinging');
   const [note, setNote] = useState('');
 
@@ -46,7 +47,7 @@ export function ReportSheet() {
           {position
             ? `Pinned at your location${activePatrol ? ' · on patrol, counts for more' : ''}`
             : locationDenied
-              ? 'No location permission — this will pin at the map centre'
+              ? `No location permission — this will pin at the ${mapCentre ? 'map centre' : 'default location'}`
               : 'Finding your location…'}
         </p>
 
