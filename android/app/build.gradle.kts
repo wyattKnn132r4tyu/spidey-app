@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.spidey.tracker.widget"
+    namespace = "com.spidey.tracker"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.spidey.tracker.widget"
+        applicationId = "com.spidey.tracker"
         minSdk = 26
         targetSdk = 34
         versionCode = 2

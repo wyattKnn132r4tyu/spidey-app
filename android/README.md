@@ -27,9 +27,29 @@ ReportSheet.kt         the report form
 BugleScreen.kt         the feed
 PatrolScreen.kt        rank, streak, history
 SpideyWidgetProvider.kt  home screen widget
-ArcadeUi.kt            bezels, amber buttons, pixel spider, web compass
+SpideySense.kt         proximity buzz and notification
+SpideySounds.kt        synthesised arcade blips
+GraticuleOverlay.kt    the lat/long grid ruled across the map
+ArcadeUi.kt            bezels, buttons, pixel sprites, web compass
 Theme.kt               palette and the pixel type scale
 ```
+
+## Features
+
+| | |
+| --- | --- |
+| **Sightings** | Drop a pin with a tag, a note and a photo |
+| **Confidence** | Time-decaying heat, confirmed or disputed by other reports |
+| **Filters** | Tap the edge tabs to hide a heat band; counts stay visible |
+| **Spidey-sense** | Buzzes and notifies when a hot pin comes within 400 m |
+| **Patrol** | Route tracking, distance, ranks and day streaks |
+| **The Bugle** | Clustered sightings written up as headlines |
+| **Sound** | Square-wave blips, synthesised — no audio files in the APK |
+| **Widget** | Home screen counts, reading the app's own data |
+
+Photos use `ACTION_IMAGE_CAPTURE` through the camera app, so the app declares no
+CAMERA permission of its own. Spidey-sense is foreground-only: there is no
+background service, so it cannot buzz from a pocket.
 
 ## The look
 
@@ -90,6 +110,7 @@ timestamps, vote counts, confidence to 1e-12. That is its whole job.
 | `SpideyCoreTest` | parity with the TypeScript model |
 | `SpideyRepositoryTest` | persistence, reseeding, votes, patrols, streaks |
 | `SpideyWidgetProviderTest` | widget renders, reads app state, opens the app |
+| `FeaturesTest` | photos, heat filters, spidey-sense radius and repeats |
 | `ScreenshotTest` | renders each screen to `build/screenshots/*.png` |
 
 Lifecycle is deliberate and tested where it can be: `start()` refuses to run

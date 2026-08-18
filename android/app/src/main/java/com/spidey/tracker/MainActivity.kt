@@ -1,10 +1,11 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -40,6 +41,8 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var permissionLauncher:
         androidx.activity.result.ActivityResultLauncher<Array<String>>
+    private lateinit var cameraLauncher:
+        androidx.activity.result.ActivityResultLauncher<Void?>
     private var viewModel: SpideyViewModel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +56,20 @@ class MainActivity : ComponentActivity() {
                 viewModel?.onLocationGranted()
                 refreshWidgets()
             }
+        }
+
+        // ACTION_IMAGE_CAPTURE via TakePicturePreview needs no CAMERA permission,
+        // because the app never declares one — the camera app takes the shot and
+        // hands back a thumbnail.
+        cameraLauncher = registerForActivityResult(
+            ActivityResultContracts.TakePicturePreview(),
+        ) { bitmap -> if (bitmap != null) viewModel?.setPendingPhoto(bitmap) }
+
+        SpideySense(this).ensureChannel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationLauncher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { }
         }
 
         setContent {
@@ -80,7 +97,7 @@ class MainActivity : ComponentActivity() {
                         .background(Ink.bezel)
                         .windowInsetsPadding(WindowInsets.safeDrawing),
                 ) {
-                    if (!state.ready) BootScreen() else SpideyApp(state, model)
+                    if (!state.ready) BootScreen() else SpideyApp(state, model, ::takePhoto)
                 }
             }
         }
@@ -98,6 +115,25 @@ class MainActivity : ComponentActivity() {
         viewModel?.onBackground()
         // The home screen should reflect what the app knows.
         refreshWidgets()
+    }
+
+    private fun takePhoto() {
+        runCatching { cameraLauncher.launch(null) }
+    }
+
+    private var notificationLauncher:
+        androidx.activity.result.ActivityResultLauncher<String>? = null
+
+    /** Asked for once, the first time the user turns spidey-sense on. */
+    fun askForNotifications() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        notificationLauncher?.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun hasLocation() = ContextCompat.checkSelfPermission(
@@ -141,9 +177,9 @@ private fun BootScreen() {
 }
 
 @Composable
-private fun SpideyApp(state: UiState, model: SpideyViewModel) {
+private fun SpideyApp(state: UiState, model: SpideyViewModel, onPhoto: () -> Unit) {
     when (state.tab) {
-        Tab.MAP -> MapScreen(state, model)
+        Tab.MAP -> MapScreen(state, model, onPhoto)
         Tab.BUGLE -> SubScreen("THE BUGLE", model) { BugleScreen(state, model) }
         Tab.PATROL -> SubScreen("PATROL", model) { PatrolScreen(state, model) }
     }

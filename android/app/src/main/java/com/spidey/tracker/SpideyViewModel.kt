@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.annotation.SuppressLint
 import android.app.Application
@@ -30,12 +30,25 @@ data class UiState(
     val tab: Tab = Tab.MAP,
     val selectedId: String? = null,
     val reporting: Boolean = false,
-    val showHeat: Boolean = true,
+    /** Heat bands the user has switched off with the edge tabs. */
+    val hiddenHeats: Set<SpideyCore.Heat> = emptySet(),
+    val soundOn: Boolean = true,
+    val senseOn: Boolean = true,
+    /** Set when the map should jump back to the user; cleared once consumed. */
+    val recenterAt: SpideyCore.LatLng? = null,
+    /** A photo taken but not yet attached to a report. */
+    val pendingPhoto: android.graphics.Bitmap? = null,
+    val lastSense: String? = null,
     val mapCentre: SpideyCore.LatLng? = null,
     /** Bumped on a timer so decaying values recompose. */
     val clock: Long = System.currentTimeMillis(),
 ) {
-    val live get() = sightings.filter { SpideyCore.isLive(it, clock) }
+    val live get() = sightings.filter {
+        SpideyCore.isLive(it, clock) && SpideyCore.heatOf(it, clock) !in hiddenHeats
+    }
+
+    /** Everything alive, ignoring the filters — what the counters should say. */
+    val allLive get() = sightings.filter { SpideyCore.isLive(it, clock) }
     val selected get() = sightings.firstOrNull { it.id == selectedId }
     val totalDistanceM get() = patrols.sumOf { it.distanceM } + (activePatrol?.distanceM ?: 0.0)
 }
@@ -165,10 +178,19 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
         listening = false
     }
 
+    private val sense by lazy { SpideySense(getApplication()) }
+
     private fun onFix(location: Location) {
         val at = SpideyCore.LatLng(location.latitude, location.longitude)
         val current = _state.value
         val patrol = current.activePatrol
+
+        if (current.senseOn) {
+            sense.check(at, current.allLive, current.clock)?.let { near ->
+                blip(SpideySounds.Blip.SENSE)
+                _state.value = _state.value.copy(lastSense = near.id)
+            }
+        }
 
         if (patrol == null) {
             _state.value = current.copy(position = at, locationDenied = false)
@@ -209,14 +231,52 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun select(id: String?) {
         _state.value = _state.value.copy(selectedId = id)
+        if (id != null) blip(SpideySounds.Blip.TAP)
     }
 
     fun setReporting(open: Boolean) {
         _state.value = _state.value.copy(reporting = open)
     }
 
-    fun toggleHeat() {
-        _state.value = _state.value.copy(showHeat = !_state.value.showHeat)
+    fun toggleSound() {
+        val on = !_state.value.soundOn
+        _state.value = _state.value.copy(soundOn = on)
+        if (on) blip(SpideySounds.Blip.TAP)
+    }
+
+    fun toggleSense() {
+        _state.value = _state.value.copy(senseOn = !_state.value.senseOn)
+        blip(SpideySounds.Blip.TAP)
+    }
+
+    /** Edge tabs: tap a band to hide it, tap again to bring it back. */
+    fun toggleHeatFilter(heat: SpideyCore.Heat) {
+        val hidden = _state.value.hiddenHeats.toMutableSet()
+        if (!hidden.add(heat)) hidden.remove(heat)
+        _state.value = _state.value.copy(hiddenHeats = hidden, selectedId = null)
+        blip(SpideySounds.Blip.TAP)
+    }
+
+    fun requestRecenter() {
+        val at = _state.value.position ?: return
+        _state.value = _state.value.copy(recenterAt = at)
+        blip(SpideySounds.Blip.TAP)
+    }
+
+    fun recenterHandled() {
+        _state.value = _state.value.copy(recenterAt = null)
+    }
+
+    fun setPendingPhoto(bitmap: android.graphics.Bitmap?) {
+        _state.value = _state.value.copy(pendingPhoto = bitmap)
+        if (bitmap != null) blip(SpideySounds.Blip.CONFIRM)
+    }
+
+    fun photoFor(sighting: SpideyCore.Sighting): android.graphics.Bitmap? =
+        sighting.photo?.let { repository.readPhoto(it) }
+
+    private fun blip(blip: SpideySounds.Blip) {
+        if (_state.value.soundOn) SpideySounds.play(blip)
     }
 
     fun setMapCentre(at: SpideyCore.LatLng) {
@@ -230,18 +290,26 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
         // report sheet says will happen.
         val at = current.position ?: current.mapCentre ?: current.home
 
+        // The photo is captured before the pin exists, so it is written under the
+        // new id and the reference stored on the sighting.
+        val id = "local-${System.currentTimeMillis().toString(36)}"
+        val photoName = current.pendingPhoto?.let { repository.writePhoto(id, it) }
+
         val (next, sighting) = repository.report(
             base.copy(sightings = current.sightings, activePatrol = current.activePatrol),
             at,
             tagId,
             note,
             current.activePatrol != null,
+            photo = photoName,
         )
         stored = next
+        blip(SpideySounds.Blip.DROP)
 
         _state.value = current.copy(
             sightings = next.sightings,
             reporting = false,
+            pendingPhoto = null,
             selectedId = sighting.id,
             activePatrol = current.activePatrol?.let {
                 it.copy(sightingIds = it.sightingIds + sighting.id)
@@ -261,6 +329,7 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
             current.activePatrol != null,
         )
         stored = next
+        blip(if (confirm) SpideySounds.Blip.CONFIRM else SpideySounds.Blip.DENY)
         _state.value = current.copy(sightings = next.sightings)
     }
 
@@ -301,6 +370,7 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
     fun reset() {
         val base = stored ?: return
         val next = repository.reset(base)
+        repository.prunePhotos(next)
         stored = next
         _state.value = _state.value.copy(
             sightings = next.sightings,

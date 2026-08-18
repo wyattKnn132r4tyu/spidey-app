@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

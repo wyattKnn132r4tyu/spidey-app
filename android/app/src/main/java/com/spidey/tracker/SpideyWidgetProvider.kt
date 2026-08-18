@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.Manifest
 import android.app.PendingIntent
@@ -163,7 +163,7 @@ class SpideyWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        const val ACTION_REFRESH = "com.spidey.tracker.widget.REFRESH"
+        const val ACTION_REFRESH = "com.spidey.tracker.REFRESH"
 
         /** Beyond this, a cached fix is reported as stale rather than current. */
         private const val MAX_FIX_AGE_MS = 6 * 60 * 60 * 1000L

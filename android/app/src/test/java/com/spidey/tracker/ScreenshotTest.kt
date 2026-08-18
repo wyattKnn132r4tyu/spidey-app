@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -135,8 +135,17 @@ class ScreenshotTest {
         val state = sampleState()
         assertNotBlank(
             capture("report") {
-                ReportSheetContent(state, model(), "acting-strange", "", {}, {})
+                ReportSheetContent(state, model(), "acting-strange", "", {}, {}, {})
             },
         )
+    }
+
+    @Test
+    fun `map with a band filtered out`() {
+        val state = sampleState().copy(
+            selectedId = null,
+            hiddenHeats = setOf(SpideyCore.Heat.COLD),
+        )
+        assertNotBlank(capture("map-filtered") { MapScreen(state, model()) })
     }
 }

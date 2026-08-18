@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.content.Context
 import org.json.JSONArray
@@ -90,6 +90,7 @@ class SpideyRepository(private val context: Context) {
         note: String,
         onPatrol: Boolean,
         now: Long = System.currentTimeMillis(),
+        photo: String? = null,
     ): Pair<State, SpideyCore.Sighting> {
         val sighting = SpideyCore.Sighting(
             id = "local-${now.toString(36)}-${Random.nextInt(0xFFFF).toString(16)}",
@@ -102,6 +103,7 @@ class SpideyRepository(private val context: Context) {
             reportedOnPatrol = onPatrol,
             confirms = emptyList(),
             denies = emptyList(),
+            photo = photo,
         )
         return save(state.copy(sightings = listOf(sighting) + state.sightings)) to sighting
     }
@@ -170,6 +172,33 @@ class SpideyRepository(private val context: Context) {
     fun save(state: State): State {
         write(state)
         return state
+    }
+
+    // ---- photos ------------------------------------------------------------
+
+    private val photoDir: File get() = File(context.filesDir, "photos").apply { mkdirs() }
+
+    fun photoFile(name: String): File = File(photoDir, name)
+
+    /** Writes a captured frame and returns the file name to store on the sighting. */
+    fun writePhoto(sightingId: String, bitmap: android.graphics.Bitmap): String? = runCatching {
+        val name = "$sightingId.png"
+        photoFile(name).outputStream().use {
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, it)
+        }
+        name
+    }.getOrNull()
+
+    fun readPhoto(name: String): android.graphics.Bitmap? = runCatching {
+        val file = photoFile(name)
+        if (!file.exists()) null
+        else android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+    }.getOrNull()
+
+    /** Deletes photos with no sighting left pointing at them. */
+    fun prunePhotos(state: State) {
+        val kept = state.sightings.mapNotNull { it.photo }.toSet()
+        photoDir.listFiles()?.forEach { if (it.name !in kept) it.delete() }
     }
 
     // ---- persistence -------------------------------------------------------
@@ -241,6 +270,7 @@ class SpideyRepository(private val context: Context) {
         .put("note", note ?: JSONObject.NULL)
         .put("handle", reporterHandle)
         .put("onPatrol", reportedOnPatrol)
+        .put("photo", photo ?: JSONObject.NULL)
         .put("confirms", JSONArray().apply { confirms.forEach { put(it.toJson()) } })
         .put("denies", JSONArray().apply { denies.forEach { put(it.toJson()) } })
 
@@ -272,6 +302,7 @@ class SpideyRepository(private val context: Context) {
         note = optStringOrNull("note"),
         reporterHandle = optString("handle"),
         reportedOnPatrol = optBoolean("onPatrol"),
+        photo = optStringOrNull("photo"),
         confirms = getJSONArray("confirms").map { it.toVote() },
         denies = getJSONArray("denies").map { it.toVote() },
     )

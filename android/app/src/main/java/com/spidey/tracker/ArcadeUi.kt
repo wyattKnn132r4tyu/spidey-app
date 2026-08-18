@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -91,24 +91,49 @@ fun HamburgerIcon(color: Color = Ink.amberInk, width: Dp = 18.dp) {
 
 /** Speaker glyph for the sound button, drawn as pixels. */
 @Composable
-fun SpeakerIcon(size: Dp = 20.dp, color: Color = Ink.navyDeep) {
+fun SpeakerIcon(size: Dp = 20.dp, color: Color = Ink.navyDeep, muted: Boolean = false) {
     Canvas(Modifier.size(size)) {
         val cell = this.size.minDimension / 9f
-        val sprite = listOf(
-            "...XX...W",
-            "..XXX..W.",
-            "XXXXX.W.W",
-            "XXXXXW.W.",
-            "XXXXXW.W.",
-            "XXXXX.W.W",
-            "..XXX..W.",
-            "...XX...W",
+        val cone = listOf(
+            "...XX....",
+            "..XXX....",
+            "XXXXX....",
+            "XXXXX....",
+            "XXXXX....",
+            "XXXXX....",
+            "..XXX....",
+            "...XX....",
             ".........",
         )
-        sprite.forEachIndexed { row, line ->
-            line.forEachIndexed { col, ch ->
-                if (ch == 'X' || ch == 'W') {
-                    drawRect(color, Offset(col * cell, row * cell), Size(cell, cell))
+        // Waves when it is on, a cross through them when it is not.
+        val trailing = if (muted) listOf(
+            ".........",
+            "......W..",
+            ".......W.",
+            "......W..",
+            ".....W...",
+            "......W..",
+            ".......W.",
+            "......W..",
+            ".........",
+        ) else listOf(
+            ".........",
+            "......W..",
+            ".....W.W.",
+            "....W.W..",
+            "....W.W..",
+            "....W.W..",
+            ".....W.W.",
+            "......W..",
+            ".........",
+        )
+
+        listOf(cone, trailing).forEach { grid ->
+            grid.forEachIndexed { row, line ->
+                line.forEachIndexed { col, ch ->
+                    if (ch == 'X' || ch == 'W') {
+                        drawRect(color, Offset(col * cell, row * cell), Size(cell, cell))
+                    }
                 }
             }
         }
@@ -211,20 +236,33 @@ fun TitlePlate(modifier: Modifier = Modifier) {
  * hangs its filter badges half outside the frame.
  */
 @Composable
-fun EdgeTab(fill: Color, dark: Color, count: Int, modifier: Modifier = Modifier) {
+fun EdgeTab(
+    fill: Color,
+    dark: Color,
+    count: Int,
+    on: Boolean = true,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
+    // Switched off, the tab drains to the bezel colour but keeps its count, so
+    // you can still see what you are hiding.
+    val face = if (on) fill else Ink.panel
+    val ink = if (on) dark else Ink.muted
+
     Column(
         modifier
-            .background(dark)
+            .background(ink)
             .padding(2.dp)
-            .background(fill)
+            .background(face)
+            .clickable(onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        PixelSpider(size = 13.dp, body = dark, legs = dark)
+        PixelSpider(size = 13.dp, body = ink, legs = ink)
         Text(
             count.toString(),
             style = PixelType.tiny,
-            color = dark,
+            color = ink,
             modifier = Modifier.padding(top = 3.dp),
         )
     }
@@ -474,6 +512,28 @@ fun CardTail(modifier: Modifier = Modifier) {
                     Offset(centre - half + cell, row * cell),
                     Size((half - cell) * 2, cell),
                 )
+            }
+        }
+    }
+}
+
+/** Crosshair for the recenter key. */
+@Composable
+fun CrosshairIcon(size: Dp = 18.dp, color: Color = Ink.navyDeep) {
+    Canvas(Modifier.size(size)) {
+        val cell = this.size.minDimension / 7f
+        val sprite = listOf(
+            "...X...",
+            "..XXX..",
+            ".X...X.",
+            "XX.X.XX",
+            ".X...X.",
+            "..XXX..",
+            "...X...",
+        )
+        sprite.forEachIndexed { row, line ->
+            line.forEachIndexed { col, ch ->
+                if (ch == 'X') drawRect(color, Offset(col * cell, row * cell), Size(cell, cell))
             }
         }
     }

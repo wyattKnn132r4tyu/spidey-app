@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -120,6 +120,33 @@ fun PatrolScreen(state: UiState, model: SpideyViewModel) {
                     style = PixelType.body,
                 ) {
                     if (state.activePatrol != null) model.stopPatrol() else model.startPatrol()
+                }
+            }
+        }
+
+        item {
+            Column(
+                Modifier
+                    .padding(top = 14.dp)
+                    .fillMaxWidth()
+                    .background(Ink.bezelLight)
+                    .padding(2.dp)
+                    .background(Ink.navy)
+                    .padding(12.dp),
+            ) {
+                Text("SPIDEY-SENSE", style = PixelType.small, color = Ink.amber)
+                Text(
+                    "BUZZES WHEN A HOT SIGHTING IS WITHIN 400M.\n" +
+                        "ONLY WHILE THE APP IS ON SCREEN.",
+                    style = PixelType.tiny,
+                    color = Ink.muted,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Box(Modifier.padding(top = 10.dp)) {
+                    PanelButton(
+                        if (state.senseOn) "On" else "Off",
+                        accent = if (state.senseOn) Ink.pinGreen else Ink.muted,
+                    ) { model.toggleSense() }
                 }
             }
         }

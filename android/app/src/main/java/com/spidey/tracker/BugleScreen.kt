@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

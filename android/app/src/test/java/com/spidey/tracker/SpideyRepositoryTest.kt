@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider

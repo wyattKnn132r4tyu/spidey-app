@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import android.content.Context
 import android.graphics.ColorMatrix
@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -37,7 +39,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Polyline
 
 @Composable
-fun MapScreen(state: UiState, model: SpideyViewModel) {
+fun MapScreen(state: UiState, model: SpideyViewModel, onPhoto: () -> Unit = {}) {
     Box(Modifier.fillMaxSize().background(Ink.bezel)) {
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
 
@@ -87,14 +89,31 @@ fun MapScreen(state: UiState, model: SpideyViewModel) {
                 ) {
                     val now = state.clock
                     EdgeTab(
-                        Ink.pinGreen,
-                        Ink.pinGreenDark,
-                        state.live.count { SpideyCore.heatOf(it, now) == SpideyCore.Heat.WARM },
+                        fill = Ink.pinGreen,
+                        dark = Ink.pinGreenDark,
+                        count = state.allLive.count {
+                            SpideyCore.heatOf(it, now) == SpideyCore.Heat.WARM
+                        },
+                        on = SpideyCore.Heat.WARM !in state.hiddenHeats,
+                        onClick = { model.toggleHeatFilter(SpideyCore.Heat.WARM) },
                     )
                     EdgeTab(
-                        Ink.pinRed,
-                        Ink.pinRedDark,
-                        state.live.count { SpideyCore.heatOf(it, now) == SpideyCore.Heat.HOT },
+                        fill = Ink.pinRed,
+                        dark = Ink.pinRedDark,
+                        count = state.allLive.count {
+                            SpideyCore.heatOf(it, now) == SpideyCore.Heat.HOT
+                        },
+                        on = SpideyCore.Heat.HOT !in state.hiddenHeats,
+                        onClick = { model.toggleHeatFilter(SpideyCore.Heat.HOT) },
+                    )
+                    EdgeTab(
+                        fill = Ink.pinGrey,
+                        dark = Ink.pinGreyDark,
+                        count = state.allLive.count {
+                            SpideyCore.heatOf(it, now) == SpideyCore.Heat.COLD
+                        },
+                        on = SpideyCore.Heat.COLD !in state.hiddenHeats,
+                        onClick = { model.toggleHeatFilter(SpideyCore.Heat.COLD) },
                     )
                 }
             }
@@ -132,10 +151,10 @@ fun MapScreen(state: UiState, model: SpideyViewModel) {
                 Box(Modifier.padding(start = 6.dp)) {
                     SquareButton(
                         size = 46.dp,
-                        fill = if (state.showHeat) Ink.bezelLight else Ink.muted,
-                        onClick = { model.toggleHeat() },
+                        fill = if (state.soundOn) Ink.bezelLight else Ink.muted,
+                        onClick = { model.toggleSound() },
                     ) {
-                        SpeakerIcon()
+                        SpeakerIcon(muted = !state.soundOn)
                     }
                 }
             }
@@ -156,14 +175,14 @@ fun MapScreen(state: UiState, model: SpideyViewModel) {
         }
     }
 
-    if (state.reporting) ReportSheet(state, model)
+    if (state.reporting) ReportSheet(state, model, onPhoto)
 }
 
 /** Everything layered over the map: counter, callout, compass, sighting card. */
 @Composable
 private fun BoxScope.MapFurniture(state: UiState, model: SpideyViewModel) {
     val me = state.profile?.id
-    val unexplored = state.live.count { sighting ->
+    val unexplored = state.allLive.count { sighting ->
         me == null || (
             sighting.confirms.none { it.userId == me } &&
                 sighting.denies.none { it.userId == me }
@@ -175,7 +194,7 @@ private fun BoxScope.MapFurniture(state: UiState, model: SpideyViewModel) {
             Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CounterStrip(total = state.live.size, unexplored = unexplored)
+            CounterStrip(total = state.allLive.size, unexplored = unexplored)
 
             if (unexplored > 0) {
                 Box(
@@ -192,6 +211,15 @@ private fun BoxScope.MapFurniture(state: UiState, model: SpideyViewModel) {
                         color = Ink.amberInk,
                     )
                 }
+            }
+        }
+    }
+
+    // Recenter sits above the compass, in the same corner cluster.
+    if (state.position != null) {
+        Box(Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 96.dp)) {
+            SquareButton(size = 38.dp, fill = Ink.bezelLight, onClick = { model.requestRecenter() }) {
+                CrosshairIcon()
             }
         }
     }
@@ -280,6 +308,11 @@ private fun OsmMap(state: UiState, model: SpideyViewModel) {
         factory = { mapView },
         modifier = Modifier.fillMaxSize(),
         update = { map ->
+            state.recenterAt?.let { at ->
+                map.controller.animateTo(GeoPoint(at.lat, at.lng))
+                model.recenterHandled()
+            }
+
             overlay.update(
                 sightings = state.live,
                 now = state.clock,
@@ -354,6 +387,21 @@ private fun SightingCard(
                 style = PixelType.small,
                 color = Ink.muted,
                 modifier = Modifier.clickable { model.select(null) }.padding(4.dp),
+            )
+        }
+
+        val photo = remember(sighting.id, sighting.photo) { model.photoFor(sighting) }
+        photo?.let {
+            androidx.compose.foundation.Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = "Photo of the sighting",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(Ink.bezelLight)
+                    .padding(2.dp),
             )
         }
 

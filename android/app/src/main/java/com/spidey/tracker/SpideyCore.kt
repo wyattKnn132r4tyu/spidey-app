@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -168,6 +168,8 @@ object SpideyCore {
         val reportedOnPatrol: Boolean,
         val confirms: List<Vote>,
         val denies: List<Vote>,
+        /** File name of a photo in the app's photo directory, if one was taken. */
+        val photo: String? = null,
     ) {
         val position get() = LatLng(lat, lng)
         val createdAtMs get() = createdAt.toLong()

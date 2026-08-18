@@ -1,4 +1,4 @@
-package com.spidey.tracker.widget
+package com.spidey.tracker
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -21,12 +22,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportSheet(state: UiState, model: SpideyViewModel) {
+fun ReportSheet(state: UiState, model: SpideyViewModel, onPhoto: () -> Unit = {}) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var tag by remember { mutableStateOf(SpideyCore.TAGS.first().id) }
     var note by remember { mutableStateOf("") }
@@ -37,7 +39,7 @@ fun ReportSheet(state: UiState, model: SpideyViewModel) {
         containerColor = Ink.bezel,
         dragHandle = null,
     ) {
-        ReportSheetContent(state, model, tag, note, { tag = it }, { note = it })
+        ReportSheetContent(state, model, tag, note, { tag = it }, { note = it }, onPhoto)
     }
 }
 
@@ -54,6 +56,7 @@ fun ReportSheetContent(
     note: String,
     onTag: (String) -> Unit,
     onNote: (String) -> Unit,
+    onPhoto: () -> Unit = {},
 ) {
     Column(Modifier.background(Ink.bezel).padding(8.dp)) {
         Column(
@@ -81,6 +84,34 @@ fun ReportSheetContent(
                         TagButton(meta, meta.id == tag, Modifier.weight(1f)) { onTag(meta.id) }
                     }
                     if (row.size == 1) Box(Modifier.weight(1f))
+                }
+            }
+
+            // Photo: the film's popup shows one, and a picture is the strongest
+            // thing an anonymous report can carry.
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                state.pendingPhoto?.let { shot ->
+                    androidx.compose.foundation.Image(
+                        bitmap = shot.asImageBitmap(),
+                        contentDescription = "Photo to attach",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Ink.bezelLight)
+                            .padding(2.dp),
+                    )
+                }
+                PanelButton(
+                    if (state.pendingPhoto == null) "Add photo" else "Retake",
+                    Modifier.weight(1f),
+                ) { onPhoto() }
+
+                if (state.pendingPhoto != null) {
+                    PanelButton("Drop", accent = Ink.pinRed) { model.setPendingPhoto(null) }
                 }
             }
 

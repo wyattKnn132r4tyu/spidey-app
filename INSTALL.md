@@ -24,6 +24,15 @@ through Scriptable.
 That is the whole install. The map, the Bugle and patrol tracking all run in the
 app; the only thing it uses the network for is map tiles.
 
+If you installed an earlier build, uninstall it first — the package was renamed
+from `com.spidey.tracker.widget` to `com.spidey.tracker`, so the new one installs
+alongside the old rather than over it.
+
+**What it does:** drop sightings with a tag, a note and a photo; confirm or
+dispute what other people reported; filter the map by heat with the tabs on the
+left edge; track patrols; read the Bugle. Spidey-sense buzzes when a hot sighting
+comes within 400 m while the app is open, and the speaker key mutes the blips.
+
 ### The widget
 
 Long-press the home screen → **Widgets** → **Spidey Tracker** → drag it out.
