@@ -18,10 +18,15 @@ installs as a PWA.
 **Installing it on a phone, with home screen widgets for iOS and Android:** see
 [`INSTALL.md`](INSTALL.md).
 
-The web app is what iPhone installs, and it carries the same arcade interface,
-the same model and the same features as the native Android build in
-[`android/`](android/) — sightings with photos, heat filters, patrols, the Bugle,
+One model, three shells: the web app here, the native Android app in
+[`android/`](android/), and a native iOS project in [`ios/`](ios/) that wraps
+this same build with Capacitor. All three carry the same arcade interface and
+the same features — sightings with photos, heat filters, patrols, the Bugle,
 sound and spidey-sense.
+
+```bash
+npm run build:ios   # web build + sync into the Xcode project (build it on a Mac)
+```
 
 ## How it works
 
@@ -73,40 +78,42 @@ src/
     seed.ts         generated sightings around the user
     rank.ts         patrol ranks
     storage.ts      localStorage persistence
+    sound.ts        synthesised blips + photo downscaling
+    haptics.ts      vibration, by whatever route the platform allows
   store/useStore.ts single zustand store
-  components/       map, heat layer, report sheet, detail, feed, patrol
+  components/       map, pins, report sheet, card, feed, patrol, pixel sprites
   hooks/useTracking.ts  geolocation watch + the decay clock
 
-widgets/
-  ios/              Scriptable widget, bundled from src/lib
-  android/          Kotlin widget, held to src/lib by a parity test
+android/            native Android app and its home screen widget
+ios/                native iOS project (Capacitor); build it on a Mac
+widgets/ios/        Scriptable widget, bundled from src/lib
 scripts/
   build-widget.mjs         bundles src/lib into the iOS widget
   widget-parity-fixture.mjs generates the Android parity fixture
 ```
 
 The map is a plain Leaflet instance driven by effects rather than a React
-wrapper, and the heat layer is a small custom canvas `L.Layer` — about fifty
-lines, which was cheaper than another dependency.
+wrapper. Pins are pixel badges built as inline SVG from the same grids the Kotlin
+draws, so both platforms render the same artwork rather than two attempts at it.
 
-Tiles are CARTO's dark basemap over OpenStreetMap data.
+Tiles are CARTO's dark basemap over OpenStreetMap data, pushed to navy in CSS.
 
 ## Tests
 
 ```bash
 npm test                        # model, store and persistence
-cd widgets/android && gradle :app:testDebugUnitTest   # Kotlin parity + widget render
+cd android && gradle :app:testDebugUnitTest            # Kotlin parity, storage, widget, screens
 ```
 
 The suite runs in `America/New_York` on purpose. Seeding is keyed to the UTC day
 so the app and the widgets agree, while streaks count local days — under UTC a
 mistake in either is invisible.
 
-## Not in v0
+## Not yet
 
-Multi-user and realtime pins (the natural next step: Supabase, whose realtime
-subscriptions are what make other people's pins appear live), push
-notifications, reputation feeding back into vote weight, photos, and territory.
+Multi-user and realtime pins — the natural next step, and the one thing that
+would turn seeded sightings into other people's. Reputation feeding back into
+vote weight, and territory, are still open too.
 
 ## Notes
 

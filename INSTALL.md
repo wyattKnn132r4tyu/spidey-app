@@ -3,10 +3,9 @@
 **Android** is a native app — install the APK and everything happens inside it.
 Nothing opens a browser.
 
-**iPhone** installs the web app to the home screen, where it runs fullscreen with
-no browser chrome and works offline. It carries the same arcade interface and the
-same features as the Android build. A native iOS binary would need a Mac, Xcode
-and a paid Apple developer account, none of which exist here.
+**iPhone** has two routes: install the web app to the home screen (works today,
+no Mac needed), or build the native iOS app from the Xcode project in `ios/`
+(needs a Mac, and gives you real haptics).
 
 ---
 
@@ -84,6 +83,40 @@ patrols, the Bugle, sound, and spidey-sense.
 | Photos | Stored in the browser, downscaled, and capped at 20 to stay inside Safari's storage. |
 | Background | Patrols track while the app is on screen, same as Android. |
 
+### The native app
+
+There is a real Xcode project in [`ios/`](ios/). It wraps the same app in a
+native shell — its own icon, its own process, no browser anywhere in the
+interface — and it is the only way to get an actual `.ipa` on an iPhone.
+
+**This needs a Mac.** Apple only allows iOS apps to be compiled and signed with
+Xcode on macOS, so it cannot be built here or on your phone.
+
+```bash
+npm install
+npm run build:ios        # builds the web app and syncs it into the Xcode project
+cd ios/App && pod install
+open App.xcworkspace
+```
+
+Then in Xcode: pick your iPhone as the destination, set **Signing & Capabilities
+→ Team** to your Apple ID, and press Run.
+
+- A **free** Apple ID works and installs to your own phone. The app stops
+  launching after 7 days and you re-run it to renew.
+- A **paid** developer account ($99/year) gives a year per build and lets you
+  send it to other people.
+
+**What the native build adds over the home-screen install:** real vibration.
+Spidey-sense reaches the Taptic Engine through Capacitor's haptics, which Safari
+cannot do. Everything else is the same app.
+
+The `ios/` project is committed but its build output is not — `pod install`
+and the web bundle are regenerated on whichever Mac builds it. A GitHub Actions
+workflow compiles it on a macOS runner on every push, so you know the project
+builds before you open it; it cannot produce an installable file, because
+signing needs your certificate.
+
 ### The widget
 
 iOS widgets need native code, but **Scriptable** runs JavaScript widgets without
@@ -108,11 +141,13 @@ the generated file.
 
 ## Why the two platforms differ
 
-Android widgets and a native UI are buildable from source with the Android SDK
-alone, so Android gets the real thing. An iOS build would need Xcode on a Mac
-plus a $99/year developer account, neither of which exists here — so iPhone gets
-the web app plus Scriptable, which is the closest thing to a real widget that
-does not require any of that.
+Android can be built and installed from source with the SDK alone, so the APK is
+finished and attached. iOS cannot: Apple requires compilation and signing on a
+Mac with Xcode, so the iOS project ships as source you build yourself, and the
+home-screen install is what works with no Mac at all.
+
+APKs do not run on iPhone, and nothing converts one. They are different formats
+for different processors, and iOS refuses anything not signed for the device.
 
 Both describe the same city: the Android app, the iOS widget and the web app all
 reproduce the same model from your location and the clock, and a parity test

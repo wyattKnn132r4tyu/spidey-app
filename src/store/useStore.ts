@@ -3,6 +3,7 @@ import type { Heat, LatLng, Patrol, Sighting, SightingTag, UserProfile } from '.
 import { dayKey, distanceM, localDayKey } from '../lib/geo';
 import { heatOf, isLive } from '../lib/confidence';
 import { seedSightings } from '../lib/seed';
+import { tingle } from '../lib/haptics';
 import { blip } from '../lib/sound';
 import { load, makeProfile, save, clear } from '../lib/storage';
 
@@ -217,8 +218,9 @@ export const useStore = create<State>((set, get) => ({
   /**
    * Spidey-sense: buzz once per hot sighting that comes close.
    *
-   * iOS Safari has no Vibration API, so on iPhone this is sound and the on-screen
-   * banner only — which is why the alert is visible rather than purely haptic.
+   * The alert is visible as well as felt: iOS Safari has no Vibration API, so on
+   * the installed web app this is a banner and a blip. The native build reaches
+   * the Taptic Engine through Capacitor and buzzes as well.
    */
   runSense: (at) => {
     const { senseOn, sightings, clock, sensed } = get();
@@ -234,7 +236,7 @@ export const useStore = create<State>((set, get) => ({
 
     set({ sensed: [...sensed, near.sighting.id], lastSense: near.sighting.id });
     blip('sense');
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([60, 90, 60]);
+    tingle();
   },
   tick: () => set({ clock: Date.now() }),
 

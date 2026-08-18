@@ -1,0 +1,42 @@
+name: iOS app
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'ios/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/ios-app.yml'
+  workflow_dispatch:
+
+# Proves the Xcode project compiles. It cannot produce something installable:
+# that needs a signing certificate from an Apple developer account, which lives
+# with whoever owns the account, not in CI.
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the web app and sync it into the iOS project
+        run: npm run build:ios
+        env:
+          BASE_PATH: ./
+
+      - name: Compile for the simulator, unsigned
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -scheme App \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
