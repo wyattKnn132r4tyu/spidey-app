@@ -7,7 +7,7 @@ import { formatAgo } from '../lib/geo';
 export function BugleFeed() {
   const { sightings, home, clock, select, setTab } = useStore();
 
-  // Dead pins are not news, and they should not be on the map either.
+  // Dead pins are not news, and they are not on the map either.
   const stories = useMemo(
     () => buildBugle(sightings.filter((s) => isLive(s, clock)), home, clock),
     [sightings, home, clock],
@@ -15,15 +15,16 @@ export function BugleFeed() {
 
   return (
     <div className="panel">
-      <header className="bugle__masthead">
+      <header className="masthead">
         <h1>THE DAILY BUGLE</h1>
-        <p>Late city edition · {new Date(clock).toLocaleDateString()}</p>
+        <p>LATE CITY EDITION</p>
+        <p>{new Date(clock).toLocaleDateString()}</p>
       </header>
 
-      {stories.length === 0 && <p className="empty">Slow news day. Nothing on the wire.</p>}
+      {stories.length === 0 && <p className="empty">SLOW NEWS DAY.<br />NOTHING ON THE WIRE.</p>}
 
       {stories.map((story) => (
-        <article
+        <button
           key={story.id}
           className={`story story--${story.tone}`}
           onClick={() => {
@@ -31,11 +32,17 @@ export function BugleFeed() {
             setTab('map');
           }}
         >
-          <h2 className="story__headline">{story.headline}</h2>
-          <p className="story__standfirst">{story.standfirst}</p>
-          <p className="story__byline">Filed {formatAgo(story.at, clock)}</p>
-        </article>
+          <h2>{story.headline}</h2>
+          <p>{story.standfirst.toUpperCase()}</p>
+          <p className="story__filed">FILED {formatAgo(story.at, clock).toUpperCase()}</p>
+        </button>
       ))}
+
+      <p className="empty" style={{ textAlign: 'center', marginTop: 24 }}>
+        FOUR YEARS AND THE CITY STILL CANNOT NAME HIM.
+        <br />
+        IT CAN ONLY SAY WHERE HE WAS.
+      </p>
     </div>
   );
 }

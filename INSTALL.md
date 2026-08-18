@@ -3,9 +3,10 @@
 **Android** is a native app — install the APK and everything happens inside it.
 Nothing opens a browser.
 
-**iPhone** has no native build (that needs a Mac, Xcode and an Apple developer
-account), so it installs the web app to the home screen and gets its widget
-through Scriptable.
+**iPhone** installs the web app to the home screen, where it runs fullscreen with
+no browser chrome and works offline. It carries the same arcade interface and the
+same features as the Android build. A native iOS binary would need a Mac, Xcode
+and a paid Apple developer account, none of which exist here.
 
 ---
 
@@ -67,7 +68,21 @@ It then lives at `https://wyattknn132r4tyu.github.io/spidey-app/`.
 
 Open that **in Safari** (Chrome on iOS cannot install web apps), then
 **Share** → **Add to Home Screen**. It launches fullscreen with no browser
-chrome and works offline after the first open.
+chrome and works offline after the first open — the pixel font, the shell and
+your pins are all cached.
+
+**What works on iPhone:** the whole app. The map, sightings with photos (the
+camera opens straight from the report sheet), confirm and dispute, heat filters,
+patrols, the Bugle, sound, and spidey-sense.
+
+**What differs from Android**, because iOS Safari allows less:
+
+| | |
+| --- | --- |
+| Vibration | Not supported. Spidey-sense uses a red on-screen banner and a blip. |
+| Notifications | Not used. The alert only appears while the app is open. |
+| Photos | Stored in the browser, downscaled, and capped at 20 to stay inside Safari's storage. |
+| Background | Patrols track while the app is on screen, same as Android. |
 
 ### The widget
 

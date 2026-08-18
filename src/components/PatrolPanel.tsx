@@ -3,72 +3,104 @@ import { formatDistance } from '../lib/geo';
 import { formatDuration, rankFor, totalDistance } from '../lib/rank';
 
 export function PatrolPanel() {
-  const { patrols, activePatrol, startPatrol, stopPatrol, profile, locationDenied, clock, reset } =
-    useStore();
+  const {
+    patrols,
+    activePatrol,
+    startPatrol,
+    stopPatrol,
+    profile,
+    locationDenied,
+    senseOn,
+    toggleSense,
+    clock,
+    reset,
+  } = useStore();
 
   const total = totalDistance(patrols) + (activePatrol?.distanceM ?? 0);
   const { current, next, progress } = rankFor(total);
+  const filled = Math.round(progress * 20);
 
   return (
     <div className="panel">
-      <header className="panel__head">
-        <h1>Patrol</h1>
-        <p>@{profile.handle}</p>
-      </header>
+      <p style={{ margin: 0, fontSize: 8 }}>@{profile.handle}</p>
+      <p className="rank__line" style={{ marginBottom: 14 }}>FIELD RECORD</p>
 
       <section className="rank">
-        <p className="rank__title">{current.title}</p>
-        <div className="rank__bar">
-          <div className="rank__fill" style={{ width: `${Math.round(progress * 100)}%` }} />
+        <p className="rank__title">{current.title.toUpperCase()}</p>
+        <div className="meter">
+          {Array.from({ length: 20 }, (_, i) => (
+            <span key={i} className={i < filled ? 'on' : ''} />
+          ))}
         </div>
-        <p className="rank__meta">
-          {formatDistance(total)} covered
-          {next && ` · ${formatDistance(next.at - total)} to ${next.title}`}
-        </p>
-        <p className="rank__meta">
-          {profile.streakDays} day streak · {patrols.length} patrol
-          {patrols.length === 1 ? '' : 's'} logged
+        <p className="rank__line">{formatDistance(total).toUpperCase()} COVERED</p>
+        {next && <p className="rank__line">NEXT: {next.title.toUpperCase()}</p>}
+        <p className="rank__line">
+          {profile.streakDays} DAY STREAK · {patrols.length} LOGGED
         </p>
       </section>
 
       {locationDenied && (
         <p className="warn">
-          Location is off, so routes will not record. Patrols only track while the app is open and
-          on screen.
+          LOCATION OFF. ROUTES WILL NOT RECORD.
+          <br />
+          PATROLS TRACK WHILE THE APP IS ON SCREEN.
         </p>
       )}
 
-      {activePatrol ? (
-        <button className="btn btn--primary btn--block" onClick={stopPatrol}>
-          End patrol · {formatDistance(activePatrol.distanceM)}
+      <section className="rank" style={{ marginTop: 14 }}>
+        <p className="rank__title">SPIDEY-SENSE</p>
+        <p className="rank__line" style={{ marginTop: 8 }}>
+          ALERTS WHEN A HOT SIGHTING IS WITHIN 400M.
+          <br />
+          ONLY WHILE THE APP IS ON SCREEN.
+        </p>
+        <div style={{ display: 'flex', marginTop: 10 }}>
+          <button
+            className={`btn-panel ${senseOn ? 'btn-panel--yes' : ''}`}
+            onClick={toggleSense}
+            aria-pressed={senseOn}
+          >
+            {senseOn ? 'ON' : 'OFF'}
+          </button>
+        </div>
+      </section>
+
+      <div style={{ display: 'flex', marginTop: 14 }}>
+        <button className="btn-amber" onClick={() => (activePatrol ? stopPatrol() : startPatrol())}>
+          {activePatrol
+            ? `END PATROL · ${formatDistance(activePatrol.distanceM).toUpperCase()}`
+            : 'START PATROL'}
         </button>
-      ) : (
-        <button className="btn btn--primary btn--block" onClick={startPatrol}>
-          Start patrol
-        </button>
+      </div>
+
+      <p className="section">HISTORY</p>
+
+      {patrols.length === 0 && (
+        <p className="empty">
+          NO PATROLS YET.
+          <br />
+          THE CITY IS NOT GOING TO WATCH ITSELF.
+        </p>
       )}
 
-      <h2 className="panel__sub">History</h2>
-      {patrols.length === 0 && <p className="empty">No patrols yet. The city is not going to watch itself.</p>}
+      {patrols.map((patrol) => (
+        <div key={patrol.id} className="row">
+          <div>
+            <strong>{formatDistance(patrol.distanceM).toUpperCase()}</strong>
+            <p>
+              {new Date(patrol.startedAt).toLocaleDateString()} ·{' '}
+              {formatDuration((patrol.endedAt ?? clock) - patrol.startedAt).toUpperCase()}
+            </p>
+          </div>
+          <span>{patrol.sightingIds.length} LOGGED</span>
+        </div>
+      ))}
 
-      <ul className="patrol-list">
-        {patrols.map((patrol) => (
-          <li key={patrol.id} className="patrol-row">
-            <div>
-              <strong>{formatDistance(patrol.distanceM)}</strong>
-              <span className="patrol-row__meta">
-                {new Date(patrol.startedAt).toLocaleDateString()} ·{' '}
-                {formatDuration((patrol.endedAt ?? clock) - patrol.startedAt)}
-              </span>
-            </div>
-            <span className="patrol-row__count">{patrol.sightingIds.length} logged</span>
-          </li>
-        ))}
-      </ul>
-
-      <button className="btn btn--ghost btn--block btn--danger" onClick={reset}>
-        Reset local data
-      </button>
+      <div style={{ display: 'flex', marginTop: 24 }}>
+        <button className="btn-panel btn-panel--danger" onClick={reset}>
+          RESET LOCAL DATA
+        </button>
+      </div>
     </div>
   );
 }

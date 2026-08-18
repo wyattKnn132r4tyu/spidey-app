@@ -2,48 +2,38 @@ import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useStore } from '../store/useStore';
-import { confidenceOf, heatOf, isLive } from '../lib/confidence';
-import { TAG_BY_ID } from '../types';
-import { HeatLayer } from './HeatLayer';
+import { heatOf } from '../lib/confidence';
+import { pinSvg } from './pinBadge';
+import type { Sighting } from '../types';
 
-export function MapView() {
+const BADGE: Record<string, { fill: string; outline: string }> = {
+  hot: { fill: '#e23b3b', outline: '#6b1414' },
+  warm: { fill: '#6abe4f', outline: '#1e4620' },
+  cold: { fill: '#c9d4dc', outline: '#4a5a66' },
+  mine: { fill: '#4ea9e8', outline: '#123a5c' },
+};
+
+export function MapView({ sightings }: { sightings: Sighting[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map>(null);
   const pinsRef = useRef<L.LayerGroup>(null);
-  const heatRef = useRef<HeatLayer>(null);
   const routeRef = useRef<L.Polyline>(null);
   const meRef = useRef<L.CircleMarker>(null);
   const centredRef = useRef(false);
 
-  const {
-    tab,
-    position,
-    sightings,
-    activePatrol,
-    showHeat,
-    selectedId,
-    clock,
-    select,
-    setMapCentre,
-  } = useStore();
-
-  // Pins below this are noise: too old or too disputed to be worth drawing.
-  const live = useMemo(() => sightings.filter((s) => isLive(s, clock)), [sightings, clock]);
+  const { position, activePatrol, selectedId, clock, recenterAt, select, setMapCentre, recenterHandled } =
+    useStore();
 
   /**
-   * Markers are expensive to rebuild and the clock ticks every 15 seconds, so
-   * they are only recreated when something visible actually changed — the set of
-   * pins, one of their heat bands, or the selection. Without this, every tick
-   * tore down and rebuilt the whole layer, cancelling hover states mid-gesture.
+   * Markers are only rebuilt when something visible changed — the set of pins,
+   * a heat band, or the selection. The clock ticks every 15 seconds and tearing
+   * the layer down that often cancels gestures mid-tap.
    */
-  const pinSignature = useMemo(
-    () => `${live.map((s) => `${s.id}:${heatOf(s, clock)}`).join('|')}#${selectedId ?? ''}`,
-    [live, clock, selectedId],
+  const signature = useMemo(
+    () => `${sightings.map((s) => `${s.id}:${heatOf(s, clock)}`).join('|')}#${selectedId ?? ''}`,
+    [sightings, clock, selectedId],
   );
 
-  // Create the map once. `home` is already resolved by the time this mounts —
-  // App renders the boot screen until the store is ready — so it is read from
-  // the store rather than taken as a dependency that would rebuild the map.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const home = useStore.getState().home;
@@ -52,15 +42,16 @@ export function MapView() {
       center: [home.lat, home.lng],
       zoom: 14,
       zoomControl: false,
-      attributionControl: true,
+      // Bottom-left, so it does not sit under the web compass.
+      attributionControl: false,
     });
+
+    L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap &copy; CARTO',
     }).addTo(map);
-
-    L.control.zoom({ position: 'topright' }).addTo(map);
 
     const publishCentre = () => {
       const centre = map.getCenter();
@@ -71,110 +62,86 @@ export function MapView() {
 
     mapRef.current = map;
     pinsRef.current = L.layerGroup().addTo(map);
-    heatRef.current = new HeatLayer();
 
     return () => {
       map.off('moveend', publishCentre);
       map.remove();
       mapRef.current = null;
       pinsRef.current = null;
-      heatRef.current = null;
       routeRef.current = null;
       meRef.current = null;
     };
   }, [setMapCentre]);
 
-  /**
-   * The map stays mounted behind the other tabs, so it can miss a resize while
-   * hidden — a rotation on the Bugle tab leaves grey gaps when you come back.
-   */
+  // The map lives behind the other panels, so it can miss a resize while hidden.
   useEffect(() => {
-    if (tab === 'map') mapRef.current?.invalidateSize();
-  }, [tab]);
+    const map = mapRef.current;
+    if (!map) return;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
-  // Recentre on the first real fix only — after that the view is the user's.
+  // Recentre on the first real fix only; after that the view is the user's.
   useEffect(() => {
     if (!mapRef.current || !position || centredRef.current) return;
     centredRef.current = true;
-    mapRef.current.setView([position.lat, position.lng], 14);
+    mapRef.current.setView([position.lat, position.lng], 15);
   }, [position]);
 
-  // Heat layer on/off and its data.
   useEffect(() => {
-    const map = mapRef.current;
-    const heat = heatRef.current;
-    if (!map || !heat) return;
+    if (!mapRef.current || !recenterAt) return;
+    mapRef.current.flyTo([recenterAt.lat, recenterAt.lng], 16, { duration: 0.6 });
+    recenterHandled();
+  }, [recenterAt, recenterHandled]);
 
-    if (showHeat && !map.hasLayer(heat)) heat.addTo(map);
-    if (!showHeat && map.hasLayer(heat)) map.removeLayer(heat);
-
-    if (showHeat) {
-      heat.setPoints(
-        live.map((s) => ({ lat: s.lat, lng: s.lng, intensity: confidenceOf(s, clock) })),
-      );
-    }
-  }, [showHeat, live, clock]);
-
-  // Pins.
   useEffect(() => {
     const pins = pinsRef.current;
     if (!pins) return;
     pins.clearLayers();
 
-    for (const sighting of live) {
+    for (const sighting of sightings) {
       const heat = heatOf(sighting, clock);
-      const meta = TAG_BY_ID[sighting.tag];
+      const mine = !sighting.id.startsWith('seed-');
+      const { fill, outline } = BADGE[mine ? 'mine' : heat];
       const selected = sighting.id === selectedId;
 
       const icon = L.divIcon({
         className: '',
-        html: `<div class="pin pin--${heat}${selected ? ' pin--selected' : ''}">
-                 <span class="pin__glyph">${meta?.icon ?? '🕷️'}</span>
-               </div>`,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
+        html: `<div class="pin ${selected ? 'pin--selected' : ''}">${pinSvg(fill, outline, mine ? 'star' : 'spider')}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
       });
 
-      // In a dense cluster pins overlap, and whichever was added last wins the
-      // tap. Stack them by importance so the hot pin is the one you can hit.
+      // Stacked by importance so the hot pin wins the tap in a dense cluster.
       const zIndexOffset = (selected ? 3000 : 0) + { hot: 2000, warm: 1000, cold: 0 }[heat];
 
-      L.marker([sighting.lat, sighting.lng], { icon, riseOnHover: true, zIndexOffset })
+      L.marker([sighting.lat, sighting.lng], { icon, zIndexOffset, riseOnHover: true })
         .on('click', () => select(sighting.id))
         .addTo(pins);
     }
-    // `clock` and `live` are read above but deliberately not dependencies: the
-    // signature is what decides when a redraw is actually needed.
+    // The signature decides when a redraw is needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinSignature, select]);
+  }, [signature, select]);
 
-  // Patrol route. Moved rather than recreated — this changes on every GPS fix.
+  // Patrol route: moved rather than recreated, since it changes on every fix.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const points = activePatrol?.route.map((p) => [p.lat, p.lng] as L.LatLngTuple) ?? [];
-
     if (points.length < 2) {
       routeRef.current?.remove();
       routeRef.current = null;
       return;
     }
 
-    if (routeRef.current) {
-      routeRef.current.setLatLngs(points);
-    } else {
-      routeRef.current = L.polyline(points, {
-        className: 'patrol-line',
-        color: '#8be9fd',
-        weight: 3,
-        dashArray: '1 7',
-        opacity: 0.9,
-      }).addTo(map);
+    if (routeRef.current) routeRef.current.setLatLngs(points);
+    else {
+      routeRef.current = L.polyline(points, { color: '#4ea9e8', weight: 5, opacity: 0.95 }).addTo(map);
     }
   }, [activePatrol]);
 
-  // Where you are. Moved rather than recreated, so it does not flicker on every fix.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !position) return;
@@ -183,13 +150,12 @@ export function MapView() {
       meRef.current.setLatLng([position.lat, position.lng]);
       return;
     }
-
     meRef.current = L.circleMarker([position.lat, position.lng], {
       radius: 6,
-      color: '#8be9fd',
+      color: '#f2faff',
       weight: 2,
-      fillColor: '#8be9fd',
-      fillOpacity: 0.9,
+      fillColor: '#4ea9e8',
+      fillOpacity: 1,
     }).addTo(map);
   }, [position]);
 

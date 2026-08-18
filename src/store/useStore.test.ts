@@ -37,7 +37,13 @@ const freshStore = () => {
     tab: 'map',
     selectedId: null,
     reporting: false,
-    showHeat: true,
+    hiddenHeats: [],
+    soundOn: false,
+    senseOn: true,
+    sensed: [],
+    pendingPhoto: null,
+    lastSense: null,
+    recenterAt: null,
   });
 };
 
@@ -395,6 +401,109 @@ describe('patrol', () => {
     useStore.getState().stopPatrol();
 
     expect(useStore.getState().profile.streakDays).toBe(1);
+  });
+});
+
+describe('filters, photos and spidey-sense', () => {
+  it('hides only the band that was switched off', async () => {
+    await useStore.getState().init();
+    useStore.getState().toggleHeatFilter('hot');
+
+    expect(useStore.getState().hiddenHeats).toEqual(['hot']);
+
+    useStore.getState().toggleHeatFilter('hot');
+    expect(useStore.getState().hiddenHeats).toEqual([]);
+  });
+
+  it('clears the selection when a band is hidden, so no ghost card remains', async () => {
+    await useStore.getState().init();
+    useStore.getState().select(useStore.getState().sightings[0].id);
+
+    useStore.getState().toggleHeatFilter('cold');
+    expect(useStore.getState().selectedId).toBeNull();
+  });
+
+  it('attaches a pending photo to the next report and then forgets it', async () => {
+    await useStore.getState().init();
+    useStore.getState().setPendingPhoto('data:image/jpeg;base64,abc');
+
+    useStore.getState().report('rooftop', '');
+
+    expect(useStore.getState().sightings[0].photo).toBe('data:image/jpeg;base64,abc');
+    expect(useStore.getState().pendingPhoto).toBeNull();
+  });
+
+  it('caps how many photos are kept so localStorage cannot fill up', async () => {
+    await useStore.getState().init();
+
+    for (let i = 0; i < 25; i++) {
+      useStore.getState().setPendingPhoto(`data:image/jpeg;base64,${i}`);
+      useStore.getState().report('rooftop', `shot ${i}`);
+    }
+
+    const withPhotos = useStore.getState().sightings.filter((s) => s.photo);
+    expect(withPhotos.length).toBeLessThanOrEqual(20);
+    // The pins themselves all survive; only the images are dropped.
+    expect(useStore.getState().sightings.filter((s) => !s.id.startsWith('seed-'))).toHaveLength(25);
+  });
+
+  it('fires spidey-sense once for a hot sighting that comes close', async () => {
+    await useStore.getState().init();
+
+    const hot = {
+      ...useStore.getState().sightings[0],
+      id: 'hot-near',
+      lat: HOME.lat,
+      lng: HOME.lng,
+      createdAt: Date.now(),
+      confirms: Array.from({ length: 14 }, (_, i) => ({
+        userId: `v${i}`,
+        distanceM: 10,
+        onPatrol: true,
+        createdAt: Date.now(),
+      })),
+      denies: [],
+    };
+    useStore.setState({ sightings: [hot], clock: Date.now() });
+
+    useStore.getState().runSense(HOME);
+    expect(useStore.getState().lastSense).toBe('hot-near');
+
+    useStore.setState({ lastSense: null });
+    useStore.getState().runSense(HOME);
+    expect(useStore.getState().lastSense).toBeNull();
+  });
+
+  it('stays quiet when spidey-sense is switched off', async () => {
+    await useStore.getState().init();
+    useStore.setState({ senseOn: false });
+
+    useStore.getState().runSense(HOME);
+    expect(useStore.getState().lastSense).toBeNull();
+  });
+
+  it('stays quiet for a hot sighting beyond the radius', async () => {
+    await useStore.getState().init();
+
+    const far = offset(HOME, 5000, 0);
+    const hot = {
+      ...useStore.getState().sightings[0],
+      id: 'hot-far',
+      lat: far.lat,
+      lng: far.lng,
+      createdAt: Date.now(),
+      confirms: Array.from({ length: 14 }, (_, i) => ({
+        userId: `v${i}`,
+        distanceM: 10,
+        onPatrol: true,
+        createdAt: Date.now(),
+      })),
+      denies: [],
+    };
+    useStore.setState({ sightings: [hot], clock: Date.now() });
+
+    useStore.getState().runSense(HOME);
+    expect(useStore.getState().lastSense).toBeNull();
   });
 });
 

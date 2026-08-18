@@ -293,15 +293,17 @@ var SpideyCore = (() => {
 // Where tapping the widget takes you. Replace if you host it elsewhere.
 const APP_URL = 'https://wyattknn132r4tyu.github.io/spidey-app/';
 
+// The arcade palette, matching the app and the Android widget.
 const COLOR = {
-  bg: new Color('#07070c'),
-  card: new Color('#12131d'),
-  red: new Color('#e8354a'),
-  hot: new Color('#ff5c3c'),
-  warm: new Color('#ffb03a'),
-  cold: new Color('#6a7290'),
-  text: new Color('#eef0f8'),
-  muted: new Color('#8d93ad'),
+  bg: new Color('#071734'),
+  card: new Color('#0b1e3b'),
+  red: new Color('#e23b3b'),
+  hot: new Color('#e23b3b'),
+  warm: new Color('#6abe4f'),
+  cold: new Color('#c9d4dc'),
+  text: new Color('#cfebff'),
+  muted: new Color('#7fa6c8'),
+  amber: new Color('#f2a93b'),
 };
 
 const HEAT_COLOR = { hot: COLOR.hot, warm: COLOR.warm, cold: COLOR.cold };
@@ -382,9 +384,9 @@ function header(stack, subtitle) {
   mark.font = Font.systemFont(11);
 
   row.addSpacer(4);
-  const title = row.addText('SPIDEY');
-  title.font = Font.boldSystemFont(10);
-  title.textColor = COLOR.red;
+  const title = row.addText('SPIDEY TRACKER');
+  title.font = Font.boldSystemFont(9);
+  title.textColor = COLOR.amber;
 
   if (subtitle) {
     row.addSpacer();

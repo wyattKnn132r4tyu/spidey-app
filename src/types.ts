@@ -57,6 +57,8 @@ export interface Sighting {
   reportedOnPatrol: boolean;
   confirms: Vote[];
   denies: Vote[];
+  /** A downscaled photo as a data URL, if one was taken. */
+  photo?: string;
 }
 
 export type Heat = 'cold' | 'warm' | 'hot';

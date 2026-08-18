@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { PixelSpider } from './Pixels';
 import { TAGS, type SightingTag } from '../types';
 
-export function ReportSheet() {
-  const { reporting, setReporting, report, position, locationDenied, activePatrol, mapCentre } =
+export function ReportSheet({ onPhoto }: { onPhoto: () => void }) {
+  const { setReporting, report, position, mapCentre, activePatrol, pendingPhoto, setPendingPhoto } =
     useStore();
   const [tag, setTag] = useState<SightingTag>('swinging');
   const [note, setNote] = useState('');
-
-  if (!reporting) return null;
 
   const submit = () => {
     report(tag, note);
@@ -19,45 +18,60 @@ export function ReportSheet() {
   return (
     <div className="sheet-backdrop" onClick={() => setReporting(false)}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet__grip" />
-        <h2 className="sheet__title">What did you see?</h2>
+        <div className="sheet__inner">
+          <h2>WHAT DID YOU SEE?</h2>
 
-        <div className="tag-grid">
-          {TAGS.map((t) => (
-            <button
-              key={t.id}
-              className={`tag ${t.id === tag ? 'tag--on' : ''}`}
-              onClick={() => setTag(t.id)}
-            >
-              <span className="tag__icon">{t.icon}</span>
-              <span className="tag__label">{t.label}</span>
+          <div className="tag-grid">
+            {TAGS.map((t) => (
+              <button
+                key={t.id}
+                className={`tag ${t.id === tag ? 'tag--on' : ''}`}
+                onClick={() => setTag(t.id)}
+                aria-pressed={t.id === tag}
+              >
+                <PixelSpider size={14} body="currentColor" />
+                <span>{t.label.toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="photo-row">
+            {pendingPhoto && <img src={pendingPhoto} alt="Photo to attach" />}
+            <button className="btn-panel" onClick={onPhoto}>
+              {pendingPhoto ? 'RETAKE' : 'ADD PHOTO'}
             </button>
-          ))}
-        </div>
+            {pendingPhoto && (
+              <button className="btn-panel btn-panel--danger" onClick={() => setPendingPhoto(null)}>
+                DROP
+              </button>
+            )}
+          </div>
 
-        <textarea
-          className="note"
-          placeholder="Add a detail (optional)"
-          value={note}
-          maxLength={180}
-          onChange={(e) => setNote(e.target.value)}
-        />
+          <textarea
+            className="note"
+            placeholder="ADD A DETAIL (OPTIONAL)"
+            value={note}
+            maxLength={140}
+            rows={3}
+            onChange={(e) => setNote(e.target.value)}
+          />
 
-        <p className="sheet__meta">
-          {position
-            ? `Pinned at your location${activePatrol ? ' · on patrol, counts for more' : ''}`
-            : locationDenied
-              ? `No location permission — this will pin at the ${mapCentre ? 'map centre' : 'default location'}`
-              : 'Finding your location…'}
-        </p>
+          <p className="sheet__meta">
+            {position
+              ? `PINNED AT YOUR LOCATION${activePatrol ? ' · ON PATROL, COUNTS FOR MORE' : ''}`
+              : mapCentre
+                ? 'NO LOCATION — PINS AT THE MAP CENTRE'
+                : 'NO LOCATION — PINS AT THE DEFAULT SPOT'}
+          </p>
 
-        <div className="sheet__actions">
-          <button className="btn btn--ghost" onClick={() => setReporting(false)}>
-            Cancel
-          </button>
-          <button className="btn btn--primary" onClick={submit}>
-            Drop pin
-          </button>
+          <div className="sheet__actions">
+            <button className="btn-panel" onClick={() => setReporting(false)}>
+              CANCEL
+            </button>
+            <button className="btn-amber" onClick={submit}>
+              DROP PIN
+            </button>
+          </div>
         </div>
       </div>
     </div>

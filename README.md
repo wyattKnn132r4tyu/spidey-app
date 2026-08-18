@@ -18,6 +18,11 @@ installs as a PWA.
 **Installing it on a phone, with home screen widgets for iOS and Android:** see
 [`INSTALL.md`](INSTALL.md).
 
+The web app is what iPhone installs, and it carries the same arcade interface,
+the same model and the same features as the native Android build in
+[`android/`](android/) — sightings with photos, heat filters, patrols, the Bugle,
+sound and spidey-sense.
+
 ## How it works
 
 ### Confidence decay

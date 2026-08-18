@@ -21,13 +21,11 @@ export function useTracking() {
     if (!('geolocation' in navigator)) return;
 
     const id = navigator.geolocation.watchPosition(
-      (pos) =>
-        useStore
-          .getState()
-          .setPosition(
-            { lat: pos.coords.latitude, lng: pos.coords.longitude },
-            pos.coords.accuracy,
-          ),
+      (pos) => {
+        const at = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        useStore.getState().setPosition(at, pos.coords.accuracy);
+        useStore.getState().runSense(at);
+      },
       (error) => {
         // Only a refusal means refused. A timeout or a temporarily unavailable
         // fix is not permission, and telling the user their location is off when

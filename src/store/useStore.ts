@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import type { LatLng, Patrol, Sighting, SightingTag, UserProfile } from '../types';
+import type { Heat, LatLng, Patrol, Sighting, SightingTag, UserProfile } from '../types';
 import { dayKey, distanceM, localDayKey } from '../lib/geo';
+import { heatOf, isLive } from '../lib/confidence';
 import { seedSightings } from '../lib/seed';
+import { blip } from '../lib/sound';
 import { load, makeProfile, save, clear } from '../lib/storage';
 
 /** Falls back to midtown Manhattan when the user declines location. */
@@ -17,6 +19,16 @@ const MIN_STEP_M = 8;
  */
 const MAX_ACCURACY_M = 50;
 
+/** Close enough that spidey-sense is worth firing. Matches the Android build. */
+export const SENSE_RADIUS_M = 400;
+
+/**
+ * Photos live in localStorage as downscaled data URLs, so the number kept is
+ * capped — a browser gives roughly 5 MB and a dead app is worse than a lost
+ * snapshot.
+ */
+const MAX_PHOTOS = 20;
+
 export type Tab = 'map' | 'bugle' | 'patrol';
 
 interface State {
@@ -31,7 +43,18 @@ interface State {
   tab: Tab;
   selectedId: string | null;
   reporting: boolean;
-  showHeat: boolean;
+  /** Heat bands switched off with the edge tabs. */
+  hiddenHeats: Heat[];
+  soundOn: boolean;
+  senseOn: boolean;
+  /** Set when the map should jump back to the user; cleared once consumed. */
+  recenterAt: LatLng | null;
+  /** A photo taken but not yet attached to a report, as a data URL. */
+  pendingPhoto: string | null;
+  /** Id of the sighting spidey-sense last fired on. */
+  lastSense: string | null;
+  /** Sightings already announced, so one pin does not buzz on every fix. */
+  sensed: string[];
   /** Where the map is looking. Used to place a pin when there is no GPS fix. */
   mapCentre: LatLng | null;
   /** Bumped on a timer so decaying values re-render. */
@@ -43,7 +66,13 @@ interface State {
   setTab: (tab: Tab) => void;
   select: (id: string | null) => void;
   setReporting: (open: boolean) => void;
-  toggleHeat: () => void;
+  toggleSound: () => void;
+  toggleSense: () => void;
+  toggleHeatFilter: (heat: Heat) => void;
+  requestRecenter: () => void;
+  recenterHandled: () => void;
+  setPendingPhoto: (dataUrl: string | null) => void;
+  runSense: (at: LatLng) => void;
   tick: () => void;
 
   report: (tag: SightingTag, note: string) => void;
@@ -85,7 +114,13 @@ export const useStore = create<State>((set, get) => ({
   tab: 'map',
   selectedId: null,
   reporting: false,
-  showHeat: true,
+  hiddenHeats: [],
+  soundOn: true,
+  senseOn: true,
+  recenterAt: null,
+  pendingPhoto: null,
+  lastSense: null,
+  sensed: [],
   mapCentre: null,
   clock: Date.now(),
 
@@ -140,13 +175,71 @@ export const useStore = create<State>((set, get) => ({
   setMapCentre: (mapCentre) => set({ mapCentre }),
 
   setTab: (tab) => set({ tab }),
-  select: (selectedId) => set({ selectedId }),
+  select: (selectedId) => {
+    set({ selectedId });
+    if (selectedId) blip('tap');
+  },
   setReporting: (reporting) => set({ reporting }),
-  toggleHeat: () => set({ showHeat: !get().showHeat }),
+  toggleSound: () => {
+    const soundOn = !get().soundOn;
+    set({ soundOn });
+    if (soundOn) blip('tap');
+  },
+
+  toggleSense: () => {
+    set({ senseOn: !get().senseOn });
+    blip('tap');
+  },
+
+  toggleHeatFilter: (heat) => {
+    const hidden = get().hiddenHeats;
+    set({
+      hiddenHeats: hidden.includes(heat) ? hidden.filter((h) => h !== heat) : [...hidden, heat],
+      selectedId: null,
+    });
+    blip('tap');
+  },
+
+  requestRecenter: () => {
+    const at = get().position;
+    if (!at) return;
+    set({ recenterAt: at });
+    blip('tap');
+  },
+
+  recenterHandled: () => set({ recenterAt: null }),
+
+  setPendingPhoto: (pendingPhoto) => {
+    set({ pendingPhoto });
+    if (pendingPhoto) blip('confirm');
+  },
+
+  /**
+   * Spidey-sense: buzz once per hot sighting that comes close.
+   *
+   * iOS Safari has no Vibration API, so on iPhone this is sound and the on-screen
+   * banner only — which is why the alert is visible rather than purely haptic.
+   */
+  runSense: (at) => {
+    const { senseOn, sightings, clock, sensed } = get();
+    if (!senseOn) return;
+
+    const near = sightings
+      .filter((s) => isLive(s, clock) && heatOf(s, clock) === 'hot' && !sensed.includes(s.id))
+      .map((s) => ({ sighting: s, away: distanceM(at, s) }))
+      .filter((entry) => entry.away <= SENSE_RADIUS_M)
+      .sort((a, b) => a.away - b.away)[0];
+
+    if (!near) return;
+
+    set({ sensed: [...sensed, near.sighting.id], lastSense: near.sighting.id });
+    blip('sense');
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([60, 90, 60]);
+  },
   tick: () => set({ clock: Date.now() }),
 
   report: (tag, note) => {
-    const { position, mapCentre, home, profile, activePatrol } = get();
+    const { position, mapCentre, home, profile, activePatrol, pendingPhoto } = get();
     // Without a fix, the pin goes where the user is looking — which is what the
     // report sheet tells them will happen.
     const at = position ?? mapCentre ?? home;
@@ -162,10 +255,22 @@ export const useStore = create<State>((set, get) => ({
       reportedOnPatrol: Boolean(activePatrol),
       confirms: [],
       denies: [],
+      photo: pendingPhoto ?? undefined,
     };
 
+    // Oldest photos are dropped first once the cap is reached; the pins stay.
+    let kept = 0;
+    const sightings = [sighting, ...get().sightings].map((s) => {
+      if (!s.photo) return s;
+      kept += 1;
+      return kept <= MAX_PHOTOS ? s : { ...s, photo: undefined };
+    });
+
+    blip('drop');
+
     set({
-      sightings: [sighting, ...get().sightings],
+      sightings,
+      pendingPhoto: null,
       reporting: false,
       selectedId: sighting.id,
       activePatrol: activePatrol
@@ -196,6 +301,7 @@ export const useStore = create<State>((set, get) => ({
           : { ...sighting, confirms, denies: [...denies, vote] };
       }),
     });
+    blip(kind === 'confirm' ? 'confirm' : 'deny');
     persist(get());
   },
 
@@ -247,6 +353,7 @@ export const useStore = create<State>((set, get) => ({
       patrols: [],
       activePatrol: null,
       selectedId: null,
+      sensed: [],
       // The streak counted patrols that no longer exist.
       profile: { ...profile, streakDays: 0, lastPatrolDay: undefined },
     });
