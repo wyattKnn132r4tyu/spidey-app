@@ -51,8 +51,14 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(url('./index.html'), copy));
+          // Only a real page becomes the shell. A 404 or a captive-portal login
+          // answers a fetch perfectly happily, and caching one of those means
+          // every offline launch from then on opens an error page instead of
+          // the app — a failure that outlives the network problem that caused it.
+          if (response.ok && response.type === 'basic') {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(url('./index.html'), copy));
+          }
           return response;
         })
         .catch(() => caches.match(url('./index.html')).then((hit) => hit ?? caches.match(url('./')))),

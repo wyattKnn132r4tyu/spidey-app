@@ -36,6 +36,7 @@ var SpideyCore = (() => {
     distanceM: () => distanceM,
     formatAgo: () => formatAgo,
     formatDistance: () => formatDistance,
+    heatFromConfidence: () => heatFromConfidence,
     heatOf: () => heatOf,
     msUntilHeat: () => msUntilHeat,
     seedSightings: () => seedSightings
@@ -291,7 +292,8 @@ var SpideyCore = (() => {
  */
 
 // Where tapping the widget takes you. Replace if you host it elsewhere.
-const APP_URL = 'https://wyattknn132r4tyu.github.io/spidey-app/';
+// The /app/ is load-bearing: the site root serves the repository, not the build.
+const APP_URL = 'https://wyattknn132r4tyu.github.io/spidey-app/app/';
 
 // The arcade palette, matching the app and the Android widget.
 const COLOR = {
@@ -364,7 +366,9 @@ function summarise(home) {
       confidence: cluster.confidence,
       away: SpideyCore.distanceM(home, cluster.centre),
       where: SpideyCore.compassFrom(home, cluster.centre),
-      heat: cluster.confidence >= 0.66 ? 'hot' : cluster.confidence >= 0.3 ? 'warm' : 'cold',
+      // Thresholds from the model, not repeated here — two copies drift and the
+      // widget starts calling things hot that the app calls warm.
+      heat: SpideyCore.heatFromConfidence(cluster.confidence),
     }))
     .sort((a, b) => b.confidence - a.confidence);
 

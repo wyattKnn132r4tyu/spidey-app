@@ -180,41 +180,41 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
 
     private val sense by lazy { SpideySense(getApplication()) }
 
-    private fun onFix(location: Location) {
+    /**
+     * Internal rather than private so a test can drive it directly: everything
+     * interesting about a fix — the sense alert, the accuracy gate, the step
+     * threshold — happens here, and reaching it through LocationManager to check
+     * any of it is a lot of machinery for no extra confidence.
+     */
+    internal fun onFix(location: Location) {
         val at = SpideyCore.LatLng(location.latitude, location.longitude)
         val current = _state.value
         val patrol = current.activePatrol
 
-        if (current.senseOn) {
-            sense.check(at, current.allLive, current.clock)?.let { near ->
+        // Everything this fix decides is gathered before anything is written.
+        // Publishing the sense alert and then writing a state built from the
+        // snapshot taken above it silently reverted the alert — and the pin was
+        // already marked announced, so it could never fire again.
+        val senseId = if (current.senseOn) {
+            sense.check(at, current.allLive, System.currentTimeMillis())?.also {
                 blip(SpideySounds.Blip.SENSE)
-                _state.value = _state.value.copy(lastSense = near.id)
-            }
-        }
-
-        if (patrol == null) {
-            _state.value = current.copy(position = at, locationDenied = false)
-            return
+            }?.id
+        } else {
+            null
         }
 
         // A vague fix is not movement: a phone on cell-tower positioning jumps
         // hundreds of metres while the user stands still.
-        if (location.hasAccuracy() && location.accuracy > SpideyRepository.MAX_ACCURACY_M) {
-            _state.value = current.copy(position = at, locationDenied = false)
-            return
-        }
-
-        val last = patrol.route.lastOrNull()
+        val vague = location.hasAccuracy() && location.accuracy > SpideyRepository.MAX_ACCURACY_M
+        val last = patrol?.route?.lastOrNull()
         val step = if (last == null) 0.0 else SpideyCore.distanceM(last, at)
-        if (last != null && step < SpideyRepository.MIN_STEP_M) {
-            _state.value = current.copy(position = at, locationDenied = false)
-            return
-        }
+        val walked = patrol != null && !vague && (last == null || step >= SpideyRepository.MIN_STEP_M)
 
         _state.value = current.copy(
             position = at,
             locationDenied = false,
-            activePatrol = patrol.copy(
+            lastSense = senseId ?: current.lastSense,
+            activePatrol = if (!walked) patrol else patrol!!.copy(
                 route = patrol.route + at,
                 // Accumulated, not recomputed: re-measuring the whole route on
                 // every fix is quadratic across a long patrol.
@@ -377,6 +377,9 @@ class SpideyViewModel(app: Application) : AndroidViewModel(app) {
             patrols = emptyList(),
             activePatrol = null,
             selectedId = null,
+            lastSense = null,
+            // Filters hiding bands of a city that no longer exists.
+            hiddenHeats = emptySet(),
             profile = next.profile,
         )
     }

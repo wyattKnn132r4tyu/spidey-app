@@ -7,7 +7,7 @@
  * instead of a hand-copy that drifts.
  */
 export { seedSightings } from '../../src/lib/seed';
-export { confidenceOf, heatOf, msUntilHeat, HEAT_LABEL } from '../../src/lib/confidence';
+export { confidenceOf, heatOf, heatFromConfidence, msUntilHeat, HEAT_LABEL } from '../../src/lib/confidence';
 export { distanceM, compassFrom, formatDistance, formatAgo } from '../../src/lib/geo';
 export { clusterSightings } from '../../src/lib/bugle';
 export { TAG_BY_ID } from '../../src/types';

@@ -1,6 +1,21 @@
-import type { Patrol, Sighting, UserProfile } from '../types';
+import { TAG_BY_ID, type Patrol, type Sighting, type SightingTag, type UserProfile } from '../types';
 
 const KEY = 'spidey-tracker:v1';
+
+/** What a report becomes when its tag no longer exists. */
+const FALLBACK_TAG: SightingTag = 'swinging';
+
+/**
+ * Tags have changed since the first build shipped, and someone who installed it
+ * then still has pins filed under names that are gone. An unknown tag is not
+ * worth discarding a pin over — and it is certainly not worth discarding the
+ * whole state file over — so it falls back to a tag that exists.
+ */
+function migrate(sightings: Sighting[]): Sighting[] {
+  return sightings.map((sighting) =>
+    TAG_BY_ID[sighting.tag] ? sighting : { ...sighting, tag: FALLBACK_TAG },
+  );
+}
 
 export interface PersistedState {
   sightings: Sighting[];
@@ -33,8 +48,8 @@ export function load(): PersistedState | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedState;
-    if (!parsed.sightings || !parsed.profile) return null;
-    return parsed;
+    if (!Array.isArray(parsed.sightings) || !parsed.profile) return null;
+    return { ...parsed, sightings: migrate(parsed.sightings) };
   } catch {
     // Corrupt or unavailable storage should never stop the app from opening.
     return null;

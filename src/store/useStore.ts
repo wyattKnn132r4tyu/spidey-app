@@ -4,7 +4,7 @@ import { dayKey, distanceM, localDayKey } from '../lib/geo';
 import { heatOf, isLive } from '../lib/confidence';
 import { seedSightings } from '../lib/seed';
 import { tingle } from '../lib/haptics';
-import { blip } from '../lib/sound';
+import { blip, setMuted } from '../lib/sound';
 import { load, makeProfile, save, clear } from '../lib/storage';
 
 /** Falls back to midtown Manhattan when the user declines location. */
@@ -29,6 +29,12 @@ export const SENSE_RADIUS_M = 400;
  * snapshot.
  */
 const MAX_PHOTOS = 20;
+
+/**
+ * How long the spidey-sense banner stays up. It announces a moment — something
+ * hot came close — and a moment that never ends is just furniture.
+ */
+export const SENSE_BANNER_MS = 30_000;
 
 export type Tab = 'map' | 'bugle' | 'patrol';
 
@@ -56,6 +62,13 @@ interface State {
   lastSense: string | null;
   /** Sightings already announced, so one pin does not buzz on every fix. */
   sensed: string[];
+  /**
+   * The UTC day the seeded pins were generated for — carried forward from the
+   * load, not restamped on every write. Writing today's date on an unrelated
+   * save marks the day seeded when it was not, and the next launch keeps
+   * yesterday's decayed pins forever.
+   */
+  seededDay: string;
   /** Where the map is looking. Used to place a pin when there is no GPS fix. */
   mapCentre: LatLng | null;
   /** Bumped on a timer so decaying values re-render. */
@@ -74,6 +87,7 @@ interface State {
   recenterHandled: () => void;
   setPendingPhoto: (dataUrl: string | null) => void;
   runSense: (at: LatLng) => void;
+  dismissSense: () => void;
   tick: () => void;
 
   report: (tag: SightingTag, note: string) => void;
@@ -89,15 +103,26 @@ const persist = (state: State) =>
     patrols: state.patrols,
     profile: state.profile,
     seededFor: state.home,
-    seededDay: dayKey(Date.now()),
+    seededDay: state.seededDay,
   });
 
-function getCurrentPosition(): Promise<LatLng | null> {
-  if (!('geolocation' in navigator)) return Promise.resolve(null);
+/** GeolocationPositionError.PERMISSION_DENIED, without needing the global. */
+const PERMISSION_DENIED = 1;
+
+interface Fix {
+  at: LatLng | null;
+  /** True only for an actual refusal — not a timeout, not an unavailable fix. */
+  denied: boolean;
+}
+
+function getCurrentPosition(): Promise<Fix> {
+  if (!('geolocation' in navigator)) return Promise.resolve({ at: null, denied: false });
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
+      (pos) => resolve({ at: { lat: pos.coords.latitude, lng: pos.coords.longitude }, denied: false }),
+      // A timeout is not a refusal. Telling someone their location is off when
+      // it is merely slow sends them to Settings to fix nothing.
+      (error) => resolve({ at: null, denied: error.code === PERMISSION_DENIED }),
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
     );
   });
@@ -122,31 +147,39 @@ export const useStore = create<State>((set, get) => ({
   pendingPhoto: null,
   lastSense: null,
   sensed: [],
+  seededDay: dayKey(Date.now()),
   mapCentre: null,
   clock: Date.now(),
 
   init: async () => {
+    // The activity's effect can fire twice under StrictMode, and a second pass
+    // would overwrite whatever the first one settled on.
+    if (get().ready) return;
+
     const stored = load();
     const fix = await getCurrentPosition();
-    const home = fix ?? stored?.seededFor ?? DEFAULT_HOME;
+    const home = fix.at ?? stored?.seededFor ?? DEFAULT_HOME;
+    const today = dayKey(Date.now());
 
     // Re-seed on a first run, on a new day (the generator is day-keyed, and
     // yesterday's pins have decayed to nothing), or when the user has moved far
     // enough that the old city's pins are nowhere near them.
     const movedCities = stored?.seededFor ? distanceM(stored.seededFor, home) > 20_000 : true;
-    const newDay = stored?.seededDay !== dayKey(Date.now());
+    const newDay = stored?.seededDay !== today;
     const staleSeed = !stored || movedCities || newDay;
 
     set({
       ready: true,
       home,
-      position: fix,
-      locationDenied: fix === null,
+      position: fix.at,
+      locationDenied: fix.denied,
       profile: stored?.profile ?? makeProfile(),
       patrols: stored?.patrols ?? [],
       sightings: staleSeed
         ? [...seedSightings(home), ...(stored?.sightings ?? []).filter((s) => !s.id.startsWith('seed-'))]
         : stored.sightings,
+      // Only a run that actually seeded may claim today.
+      seededDay: staleSeed ? today : stored.seededDay!,
     });
     persist(get());
   },
@@ -177,14 +210,18 @@ export const useStore = create<State>((set, get) => ({
 
   setTab: (tab) => set({ tab }),
   select: (selectedId) => {
-    set({ selectedId });
+    // Acting on the alert clears it, the same as any other notification.
+    set({ selectedId, lastSense: null });
     if (selectedId) blip('tap');
   },
   setReporting: (reporting) => set({ reporting }),
   toggleSound: () => {
     const soundOn = !get().soundOn;
     set({ soundOn });
-    if (soundOn) blip('tap');
+    // Gate first, then blip: turning it on is confirmed by the sound itself,
+    // turning it off is swallowed by the gate we just closed.
+    setMuted(!soundOn);
+    blip('tap');
   },
 
   toggleSense: () => {
@@ -237,7 +274,15 @@ export const useStore = create<State>((set, get) => ({
     set({ sensed: [...sensed, near.sighting.id], lastSense: near.sighting.id });
     blip('sense');
     tingle();
+
+    // The banner announces a moment. Left up, it stops meaning anything and
+    // starts covering the map.
+    setTimeout(() => {
+      if (get().lastSense === near.sighting.id) set({ lastSense: null });
+    }, SENSE_BANNER_MS);
   },
+
+  dismissSense: () => set({ lastSense: null }),
   tick: () => set({ clock: Date.now() }),
 
   report: (tag, note) => {
@@ -356,6 +401,10 @@ export const useStore = create<State>((set, get) => ({
       activePatrol: null,
       selectedId: null,
       sensed: [],
+      lastSense: null,
+      // Filters hiding bands of a city that no longer exists.
+      hiddenHeats: [],
+      seededDay: dayKey(Date.now()),
       // The streak counted patrols that no longer exist.
       profile: { ...profile, streakDays: 0, lastPatrolDay: undefined },
     });

@@ -11,6 +11,7 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import java.util.Locale
 
 /**
  * The model: geography, seeding and the confidence maths.
@@ -86,11 +87,17 @@ object SpideyCore {
     fun formatDistance(metres: Double): String {
         if (metres < 1000) return "${(metres / 10).roundToInt() * 10} m"
         val km = metres / 1000.0
-        return if (km < 10) String.format("%.1f km", km) else "${km.roundToInt()} km"
+        // Locale.US, matching toFixed(1) in the TypeScript. Left to the default
+        // locale this reads "1,5 km" on a French or German phone, which is a
+        // decimal comma in the middle of an otherwise English interface.
+        return if (km < 10) String.format(Locale.US, "%.1f km", km) else "${km.roundToInt()} km"
     }
 
     fun formatAgo(timestamp: Long, now: Long): String {
-        val seconds = max(0L, (now - timestamp) / 1000)
+        // Rounded, not truncated: the TypeScript rounds here, and truncating
+        // leaves a second's worth of ages reading "just now" on one platform
+        // and "1 min ago" on the other.
+        val seconds = max(0L, Math.round((now - timestamp) / 1000.0))
         if (seconds < 60) return "just now"
         val minutes = Math.round(seconds / 60.0)
         if (minutes < 60) return "$minutes min ago"

@@ -13,8 +13,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Date
@@ -23,6 +28,11 @@ import java.util.Date
 fun PatrolScreen(state: UiState, model: SpideyViewModel) {
     val total = state.totalDistanceM
     val (rank, next, progress) = SpideyRepository.rankFor(total)
+    val activity = LocalContext.current as? MainActivity
+
+    // Reset throws away every pin, patrol and streak the user has, from a button
+    // sitting one tap away at the bottom of a list. It asks first.
+    var armed by remember { mutableStateOf(false) }
 
     LazyColumn(Modifier.fillMaxSize().background(Ink.navyDeep).padding(horizontal = 12.dp)) {
         item {
@@ -146,7 +156,15 @@ fun PatrolScreen(state: UiState, model: SpideyViewModel) {
                     PanelButton(
                         if (state.senseOn) "On" else "Off",
                         accent = if (state.senseOn) Ink.pinGreen else Ink.muted,
-                    ) { model.toggleSense() }
+                    ) {
+                        // Android 13 needs POST_NOTIFICATIONS granted before a
+                        // notification will post at all. Nothing asked for it,
+                        // so the notification half of spidey-sense was silently
+                        // dead on every recent phone. Asked for at the moment
+                        // the user says they want the alerts.
+                        if (!state.senseOn) activity?.askForNotifications()
+                        model.toggleSense()
+                    }
                 }
             }
         }
@@ -208,8 +226,17 @@ fun PatrolScreen(state: UiState, model: SpideyViewModel) {
 
         item {
             Box(Modifier.padding(top = 24.dp, bottom = 28.dp).fillMaxWidth()) {
-                PanelButton("Reset local data", Modifier.fillMaxWidth(), accent = Ink.pinRed) {
-                    model.reset()
+                PanelButton(
+                    if (armed) "Tap again to wipe everything" else "Reset local data",
+                    Modifier.fillMaxWidth(),
+                    accent = Ink.pinRed,
+                ) {
+                    if (armed) {
+                        armed = false
+                        model.reset()
+                    } else {
+                        armed = true
+                    }
                 }
             }
         }

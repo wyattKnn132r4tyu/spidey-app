@@ -23,6 +23,20 @@ type AudioContextCtor = typeof AudioContext;
 
 let context: AudioContext | null = null;
 
+/**
+ * The mute gate lives here rather than at each call site.
+ *
+ * Every interaction blips, from a dozen places, and a gate the callers have to
+ * remember is a gate that eventually gets forgotten — which is exactly what
+ * happened: the speaker key changed its own glyph and nothing else. Holding it
+ * next to the only code that makes a sound means no future call site can miss it.
+ */
+let muted = false;
+
+export function setMuted(value: boolean): void {
+  muted = value;
+}
+
 function audio(): AudioContext | null {
   if (typeof window === 'undefined') return null;
 
@@ -37,6 +51,8 @@ function audio(): AudioContext | null {
 }
 
 export function blip(name: BlipName): void {
+  if (muted) return;
+
   try {
     const ctx = audio();
     if (!ctx) return;

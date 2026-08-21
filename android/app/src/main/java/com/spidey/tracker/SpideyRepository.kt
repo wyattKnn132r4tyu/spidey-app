@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.Calendar
+import java.util.Locale
 import kotlin.math.max
 import kotlin.random.Random
 
@@ -75,6 +76,10 @@ class SpideyRepository(private val context: Context) {
             activePatrol = stored?.activePatrol,
         )
         write(state)
+        // Yesterday's pins are gone but their photos were not: full-resolution
+        // frames outlive the sightings that referenced them, and nothing else
+        // ever swept them up. Start-up is the natural place to do it.
+        prunePhotos(state)
         return state
     }
 
@@ -255,10 +260,15 @@ class SpideyRepository(private val context: Context) {
         root.put("seededDay", state.seededDay)
         root.put("activePatrol", state.activePatrol?.toJson() ?: JSONObject.NULL)
 
-        // Written whole: a half-written file is worse than a stale one.
+        // Written whole: a half-written file is worse than a stale one. If the
+        // rename cannot happen, copy over the top rather than returning as
+        // though the write succeeded and losing everything since the last save.
         val temp = File(context.filesDir, "$FILE_NAME.tmp")
         temp.writeText(root.toString())
-        temp.renameTo(file)
+        if (!temp.renameTo(file)) {
+            runCatching { temp.copyTo(file, overwrite = true) }
+            temp.delete()
+        }
     }
 
     private fun SpideyCore.Sighting.toJson() = JSONObject()
@@ -340,23 +350,29 @@ class SpideyRepository(private val context: Context) {
         fun dayKey(timestamp: Long): String {
             val calendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
             calendar.timeInMillis = timestamp
-            return "%04d-%02d-%02d".format(
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH) + 1,
-                calendar.get(Calendar.DAY_OF_MONTH),
-            )
+            return dateString(calendar)
         }
 
         /** The day as the user experiences it, for streaks. */
         fun localDayKey(timestamp: Long): String {
             val calendar = Calendar.getInstance()
             calendar.timeInMillis = timestamp
-            return "%04d-%02d-%02d".format(
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH) + 1,
-                calendar.get(Calendar.DAY_OF_MONTH),
-            )
+            return dateString(calendar)
         }
+
+        /**
+         * Pinned to Locale.US on purpose. The default locale decides what digits
+         * "%d" produces, and on a device set to one with its own numerals these
+         * keys stop being the ISO dates the web app and the iOS widget write —
+         * so the day the city was seeded for stops being comparable.
+         */
+        private fun dateString(calendar: Calendar): String = String.format(
+            Locale.US,
+            "%04d-%02d-%02d",
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH) + 1,
+            calendar.get(Calendar.DAY_OF_MONTH),
+        )
 
         /** Ignore GPS jitter below this when accumulating a patrol route. */
         const val MIN_STEP_M = 8.0

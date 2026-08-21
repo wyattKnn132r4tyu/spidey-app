@@ -1,20 +1,26 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_HOME, useStore } from './useStore';
+import { DEFAULT_HOME, SENSE_BANNER_MS, useStore } from './useStore';
 import { dayKey, distanceM, offset } from '../lib/geo';
+import { isLive } from '../lib/confidence';
 import { makeProfile } from '../lib/storage';
+import { TAG_BY_ID, type Sighting } from '../types';
 
 const KEY = 'spidey-tracker:v1';
 const HOME = { lat: 40.7484, lng: -73.9857 };
 
-/** Replaces navigator.geolocation with one that returns a fixed fix, or fails. */
-function stubGeolocation(fix: { lat: number; lng: number } | null) {
+/**
+ * Replaces navigator.geolocation with one that returns a fixed fix, or fails
+ * with a given code — 1 is PERMISSION_DENIED, 3 is TIMEOUT, and the difference
+ * is what the app tells the user.
+ */
+function stubGeolocation(fix: { lat: number; lng: number } | null, code = 1) {
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
     value: {
       getCurrentPosition: (ok: PositionCallback, fail?: PositionErrorCallback) => {
         if (fix) ok({ coords: { latitude: fix.lat, longitude: fix.lng } } as GeolocationPosition);
-        else fail?.({ code: 1, message: 'denied' } as GeolocationPositionError);
+        else fail?.({ code, message: 'no fix' } as GeolocationPositionError);
       },
       watchPosition: () => 1,
       clearWatch: () => {},
@@ -23,6 +29,25 @@ function stubGeolocation(fix: { lat: number; lng: number } | null) {
 }
 
 const stored = () => JSON.parse(localStorage.getItem(KEY)!);
+
+/** A sighting confirmed enough, and recently enough, to read as hot. */
+const hotAt = (at: { lat: number; lng: number }, id = 'hot-near'): Sighting => ({
+  id,
+  lat: at.lat,
+  lng: at.lng,
+  createdAt: Date.now(),
+  tag: 'swinging',
+  reporterId: 'someone',
+  reporterHandle: 'someone',
+  reportedOnPatrol: true,
+  confirms: Array.from({ length: 14 }, (_, i) => ({
+    userId: `v${i}`,
+    distanceM: 10,
+    onPatrol: true,
+    createdAt: Date.now(),
+  })),
+  denies: [],
+});
 
 const freshStore = () => {
   useStore.setState({
@@ -41,6 +66,7 @@ const freshStore = () => {
     soundOn: false,
     senseOn: true,
     sensed: [],
+    seededDay: dayKey(Date.now()),
     pendingPhoto: null,
     lastSense: null,
     recenterAt: null,
@@ -533,5 +559,121 @@ describe('reset', () => {
     useStore.getState().reset();
     expect(useStore.getState().profile.streakDays).toBe(0);
     expect(useStore.getState().profile.lastPatrolDay).toBeUndefined();
+  });
+});
+
+describe('bugs that shipped', () => {
+  it('does not mark a day seeded that it never seeded for', async () => {
+    vi.useFakeTimers();
+    const evening = new Date('2026-03-04T23:50:00Z').getTime();
+    const afterMidnight = new Date('2026-03-05T00:10:00Z').getTime();
+
+    vi.setSystemTime(evening);
+    await useStore.getState().init();
+    expect(stored().seededDay).toBe('2026-03-04');
+
+    // The user is still in the app when UTC midnight passes, and does something
+    // that writes — a vote is enough. That write must not claim the new day,
+    // because nothing seeded it.
+    vi.setSystemTime(afterMidnight);
+    useStore.getState().vote(useStore.getState().sightings[0].id, 'confirm');
+    expect(stored().seededDay).toBe('2026-03-04');
+
+    // So the next launch still knows the city is a day old and reseeds it,
+    // rather than opening on pins that have decayed to nothing.
+    freshStore();
+    await useStore.getState().init();
+    expect(stored().seededDay).toBe('2026-03-05');
+    expect(useStore.getState().sightings.filter((s) => isLive(s, afterMidnight)).length)
+      .toBeGreaterThan(0);
+  });
+
+  it('does not call a location timeout a refusal', async () => {
+    // code 3 is TIMEOUT. Reporting it as "location off" sends the user to
+    // Settings to fix something that is not broken.
+    stubGeolocation(null, 3);
+    await useStore.getState().init();
+
+    expect(useStore.getState().position).toBeNull();
+    expect(useStore.getState().locationDenied).toBe(false);
+  });
+
+  it('still reports an actual refusal as one', async () => {
+    stubGeolocation(null, 1);
+    await useStore.getState().init();
+    expect(useStore.getState().locationDenied).toBe(true);
+  });
+
+  it('carries a pin whose tag no longer exists rather than showing a blank card', async () => {
+    // Tags have been renamed since the first build shipped. Someone who installed
+    // it then still has pins filed under names that are gone, and the card read
+    // its label straight off a lookup that returned nothing.
+    await useStore.getState().init();
+    const legacy = {
+      ...useStore.getState().sightings[0],
+      id: 'local-old',
+      tag: 'suit-spotted',
+    };
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ ...stored(), sightings: [legacy], seededDay: dayKey(Date.now()) }),
+    );
+
+    freshStore();
+    await useStore.getState().init();
+
+    const restored = useStore.getState().sightings.find((s) => s.id === 'local-old')!;
+    expect(restored).toBeDefined();
+    expect(TAG_BY_ID[restored.tag]).toBeDefined();
+  });
+
+  it('takes the spidey-sense banner down on its own', async () => {
+    vi.useFakeTimers();
+    await useStore.getState().init();
+    useStore.setState({ sightings: [hotAt(HOME)], clock: Date.now() });
+
+    useStore.getState().runSense(HOME);
+    expect(useStore.getState().lastSense).toBe('hot-near');
+
+    vi.advanceTimersByTime(SENSE_BANNER_MS);
+    expect(useStore.getState().lastSense).toBeNull();
+  });
+
+  it('takes the banner down when the user acts on it', async () => {
+    await useStore.getState().init();
+    useStore.setState({ sightings: [hotAt(HOME)], clock: Date.now() });
+
+    useStore.getState().runSense(HOME);
+    useStore.getState().select('hot-near');
+
+    expect(useStore.getState().selectedId).toBe('hot-near');
+    expect(useStore.getState().lastSense).toBeNull();
+  });
+
+  it('leaves a later alert alone when an earlier one expires', async () => {
+    vi.useFakeTimers();
+    await useStore.getState().init();
+    useStore.setState({ sightings: [hotAt(HOME)], clock: Date.now() });
+    useStore.getState().runSense(HOME);
+
+    // A second pin fires just before the first one's timer comes due.
+    vi.advanceTimersByTime(SENSE_BANNER_MS - 1);
+    useStore.setState({
+      sightings: [hotAt(HOME, 'hot-second')],
+      sensed: [],
+      lastSense: 'hot-second',
+    });
+
+    vi.advanceTimersByTime(1);
+    expect(useStore.getState().lastSense).toBe('hot-second');
+  });
+
+  it('clears the heat filters on reset, so the new city is not half hidden', async () => {
+    await useStore.getState().init();
+    useStore.getState().toggleHeatFilter('hot');
+    expect(useStore.getState().hiddenHeats).toEqual(['hot']);
+
+    useStore.getState().reset();
+    expect(useStore.getState().hiddenHeats).toEqual([]);
   });
 });

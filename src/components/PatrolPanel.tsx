@@ -1,6 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { formatDistance } from '../lib/geo';
 import { formatDuration, rankFor, totalDistance } from '../lib/rank';
+
+/** How long the reset button stays armed before it forgets it was pressed. */
+const ARMED_MS = 5_000;
 
 export function PatrolPanel() {
   const {
@@ -19,6 +23,15 @@ export function PatrolPanel() {
   const total = totalDistance(patrols) + (activePatrol?.distanceM ?? 0);
   const { current, next, progress } = rankFor(total);
   const filled = Math.round(progress * 20);
+
+  // Reset throws away every pin, patrol and streak the user has, and it sits one
+  // tap away at the bottom of a panel people scroll through. It asks first.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = window.setTimeout(() => setArmed(false), ARMED_MS);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
 
   return (
     <div className="panel">
@@ -97,8 +110,15 @@ export function PatrolPanel() {
       ))}
 
       <div style={{ display: 'flex', marginTop: 24 }}>
-        <button className="btn-panel btn-panel--danger" onClick={reset}>
-          RESET LOCAL DATA
+        <button
+          className="btn-panel btn-panel--danger"
+          onClick={() => {
+            if (!armed) return setArmed(true);
+            setArmed(false);
+            reset();
+          }}
+        >
+          {armed ? 'TAP AGAIN TO WIPE EVERYTHING' : 'RESET LOCAL DATA'}
         </button>
       </div>
     </div>
