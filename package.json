@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:pages": "tsc -b && BASE_PATH=./ vite build --outDir app && cp app/index.html app/404.html",
     "lint": "oxlint",
     "preview": "vite preview",
     "build:widget": "node scripts/build-widget.mjs",

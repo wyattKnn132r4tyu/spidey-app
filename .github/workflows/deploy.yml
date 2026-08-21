@@ -39,6 +39,11 @@ jobs:
       # Pages serves 404.html for unknown paths; the SPA shell handles routing.
       - run: cp dist/index.html dist/404.html
 
+      # A second, path-independent copy under /app/. That is where the app lives
+      # while Pages publishes the branch itself rather than this artifact, and
+      # rebuilding it here keeps the same link working under either source.
+      - run: npm run build:pages && cp -r app dist/app
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -56,19 +56,25 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 ### The app
 
-The web app needs an HTTPS address first. A workflow publishes it, but **one
-setting has to be flipped by hand — I cannot do it from here:**
+Open this **in Safari** on the iPhone:
 
-1. Repo → **Settings** → **Pages**
-2. **Build and deployment → Source**: choose **GitHub Actions**
-3. **Actions** → **Deploy to GitHub Pages** → **Run workflow**
+```
+https://wyattknn132r4tyu.github.io/spidey-app/app/
+```
 
-It then lives at `https://wyattknn132r4tyu.github.io/spidey-app/`.
-
-Open that **in Safari** (Chrome on iOS cannot install web apps), then
-**Share** → **Add to Home Screen**. It launches fullscreen with no browser
+Then **Share** → **Add to Home Screen**. It launches fullscreen with no browser
 chrome and works offline after the first open — the pixel font, the shell and
-your pins are all cached.
+your pins are all cached. Chrome on iOS cannot install web apps; it has to be
+Safari.
+
+The `/app/` on the end is not a detail you can drop. GitHub Pages is publishing
+the branch as-is, so the site root serves this repository's source rather than a
+built app; `app/` is the build, committed alongside it and made with a relative
+base so it runs from any path. `npm run build:pages` regenerates it.
+
+Switching **Settings → Pages → Source** to **GitHub Actions** makes the bare
+`.../spidey-app/` address work as well — the workflow that builds it is already
+in the repo. Nothing needs it, and the `/app/` link keeps working either way.
 
 **What works on iPhone:** the whole app. The map, sightings with photos (the
 camera opens straight from the report sheet), confirm and dispute, heat filters,

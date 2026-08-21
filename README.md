@@ -15,7 +15,9 @@ npm run dev
 Open it on a phone (or a narrow browser window) — it is built mobile-first and
 installs as a PWA.
 
-**Installing it on a phone, with home screen widgets for iOS and Android:** see
+It is live at
+<https://wyattknn132r4tyu.github.io/spidey-app/app/> — open that in Safari and
+Add to Home Screen. For the Android APK and the home screen widgets, see
 [`INSTALL.md`](INSTALL.md).
 
 One model, three shells: the web app here, the native Android app in
@@ -84,6 +86,7 @@ src/
   components/       map, pins, report sheet, card, feed, patrol, pixel sprites
   hooks/useTracking.ts  geolocation watch + the decay clock
 
+app/                built web app, committed so GitHub Pages can serve it
 android/            native Android app and its home screen widget
 ios/                native iOS project (Capacitor); build it on a Mac
 widgets/ios/        Scriptable widget, bundled from src/lib
